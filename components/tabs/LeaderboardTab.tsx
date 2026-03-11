@@ -3,20 +3,23 @@
 import LevelBadge from "@/components/shared/LevelBadge";
 import { getLevelInfo } from "@/lib/scoring";
 import { ACHIEVEMENT_IDS } from "@/lib/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-// Mock data for leaderboard until Supabase is connected
-const MOCK_LEADERBOARD = [
-  { address: "0x1234...abcd", name: "trader.base.eth", score: 12450, winRate: 72, streak: 8 },
-  { address: "0x5678...efgh", name: "shark.base.eth", score: 9800, winRate: 68, streak: 5 },
-  { address: "0x9abc...ijkl", name: "degen.base.eth", score: 7200, winRate: 65, streak: 3 },
-  { address: "0xdef0...mnop", name: "0xdef0...mnop", score: 5500, winRate: 61, streak: 4 },
-  { address: "0x1111...qrst", name: "whale.base.eth", score: 4200, winRate: 58, streak: 2 },
-  { address: "0x2222...uvwx", name: "0x2222...uvwx", score: 3100, winRate: 55, streak: 6 },
-  { address: "0x3333...yzab", name: "newbie.base.eth", score: 2800, winRate: 52, streak: 1 },
-  { address: "0x4444...cdef", name: "0x4444...cdef", score: 1900, winRate: 49, streak: 0 },
-  { address: "0x5555...ghij", name: "btcfan.base.eth", score: 1200, winRate: 47, streak: 3 },
-  { address: "0x6666...klmn", name: "0x6666...klmn", score: 800, winRate: 44, streak: 1 },
+interface LeaderboardEntry {
+  address: string | null;
+  display_name: string | null;
+  total_score: number;
+  win_rate: number;
+  best_streak: number;
+  rounds_played: number;
+}
+
+const MOCK_LEADERBOARD: LeaderboardEntry[] = [
+  { address: "0x1234...abcd", display_name: "trader.base.eth", total_score: 12450, win_rate: 72, best_streak: 8, rounds_played: 40 },
+  { address: "0x5678...efgh", display_name: "shark.base.eth", total_score: 9800, win_rate: 68, best_streak: 5, rounds_played: 30 },
+  { address: "0x9abc...ijkl", display_name: "degen.base.eth", total_score: 7200, win_rate: 65, best_streak: 3, rounds_played: 25 },
+  { address: "0xdef0...mnop", display_name: null, total_score: 5500, win_rate: 61, best_streak: 4, rounds_played: 20 },
+  { address: "0x1111...qrst", display_name: "whale.base.eth", total_score: 4200, win_rate: 58, best_streak: 2, rounds_played: 18 },
 ];
 
 const ACHIEVEMENT_LIST = [
@@ -34,9 +37,34 @@ const ACHIEVEMENT_LIST = [
 
 type SubTab = "rankings" | "stats" | "nfts";
 
-export default function LeaderboardTab() {
+interface LeaderboardTabProps {
+  userScore?: number;
+  userBalance?: number;
+  userWinRate?: number;
+  userStreak?: number;
+  userRoundsPlayed?: number;
+}
+
+export default function LeaderboardTab({
+  userScore = 0,
+  userBalance = 1000,
+  userWinRate = 0,
+  userStreak = 0,
+  userRoundsPlayed = 0,
+}: LeaderboardTabProps) {
   const [subTab, setSubTab] = useState<SubTab>("rankings");
-  const userScore = 1250; // Would come from state/context
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(MOCK_LEADERBOARD);
+
+  useEffect(() => {
+    fetch("/api/leaderboard")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.leaderboard && data.leaderboard.length > 0) {
+          setLeaderboard(data.leaderboard);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-3 pb-4">
@@ -72,11 +100,12 @@ export default function LeaderboardTab() {
             </span>
           </div>
 
-          {MOCK_LEADERBOARD.map((player, index) => {
-            const { badge } = getLevelInfo(player.score);
+          {leaderboard.map((player, index) => {
+            const { badge } = getLevelInfo(player.total_score);
+            const name = player.display_name || (player.address ? `${player.address.slice(0, 6)}...${player.address.slice(-4)}` : "Anonymous");
             return (
               <div
-                key={player.address}
+                key={player.address || index}
                 className={`flex items-center gap-3 p-3 rounded-xl ${
                   index < 3
                     ? "bg-yellow-500/5 border border-yellow-500/10"
@@ -100,15 +129,15 @@ export default function LeaderboardTab() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs">{badge}</span>
                     <span className="text-xs font-medium text-white truncate">
-                      {player.name}
+                      {name}
                     </span>
                   </div>
                   <div className="text-[10px] text-gray-500">
-                    {player.winRate}% WR · {player.streak} streak
+                    {player.win_rate}% WR · {player.best_streak} streak
                   </div>
                 </div>
                 <span className="text-xs font-bold font-mono text-white">
-                  {player.score.toLocaleString()}
+                  {player.total_score.toLocaleString()}
                 </span>
               </div>
             );
@@ -123,13 +152,11 @@ export default function LeaderboardTab() {
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Total Score", value: userScore.toLocaleString() },
-              { label: "Win Rate", value: "58%" },
-              { label: "$DOJO Balance", value: "1,250" },
-              { label: "Best Streak", value: "4" },
-              { label: "Rounds Played", value: "24" },
-              { label: "Avg Score", value: "72" },
-              { label: "Scenarios Done", value: "5/20" },
-              { label: "Total XP", value: "300" },
+              { label: "Win Rate", value: `${userWinRate}%` },
+              { label: "$DOJO Balance", value: userBalance.toLocaleString() },
+              { label: "Best Streak", value: String(userStreak) },
+              { label: "Rounds Played", value: String(userRoundsPlayed) },
+              { label: "Avg Score", value: userRoundsPlayed > 0 ? Math.round(userScore / userRoundsPlayed).toLocaleString() : "0" },
             ].map((stat) => (
               <div
                 key={stat.label}

@@ -1,14 +1,32 @@
 "use client";
 
-import { scenarios, Scenario } from "@/lib/scenarios";
-import { useState } from "react";
+import { scenarios } from "@/lib/scenarios";
+import { useEffect, useState } from "react";
 
-export default function LearnTab() {
+interface LearnTabProps {
+  userId?: string | null;
+}
+
+export default function LearnTab({ userId }: LearnTabProps) {
   const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
   const [totalXp, setTotalXp] = useState(0);
   const [showingList, setShowingList] = useState(true);
+
+  // Load progress from DB
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`/api/learn?user_id=${userId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.completedIds?.length > 0) {
+          setCompletedIds(new Set(data.completedIds));
+        }
+        if (data.totalXp) setTotalXp(data.totalXp);
+      })
+      .catch(() => {});
+  }, [userId]);
 
   const currentScenario = scenarios[currentScenarioIndex];
 
@@ -17,8 +35,23 @@ export default function LearnTab() {
     setSelectedAnswer(choiceIndex);
 
     if (currentScenario.choices[choiceIndex].correct) {
+      const alreadyDone = completedIds.has(currentScenario.id);
       setCompletedIds((prev) => new Set(Array.from(prev).concat(currentScenario.id)));
-      setTotalXp((prev) => prev + currentScenario.xp);
+      if (!alreadyDone) {
+        setTotalXp((prev) => prev + currentScenario.xp);
+        // Save to DB
+        if (userId) {
+          fetch("/api/learn", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: userId,
+              scenario_id: currentScenario.id,
+              xp: currentScenario.xp,
+            }),
+          }).catch(() => {});
+        }
+      }
     }
   };
 
@@ -31,7 +64,6 @@ export default function LearnTab() {
   };
 
   const startScenario = (index: number) => {
-    // Can only access if previous are complete (or it's the first, or already completed)
     const scenario = scenarios[index];
     const prevCompleted =
       index === 0 || completedIds.has(scenarios[index - 1].id);

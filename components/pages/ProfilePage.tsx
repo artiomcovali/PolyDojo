@@ -1,12 +1,14 @@
 "use client";
 
 import LevelBadge from "@/components/shared/LevelBadge";
+import { UserRow } from "@/lib/supabase";
 import Image from "next/image";
 
 interface ProfilePageProps {
   userName: string;
   pfpUrl: string | null | undefined;
   walletAddress: string | null;
+  dbUser: UserRow | null | undefined;
   onClose: () => void;
 }
 
@@ -14,8 +16,16 @@ export default function ProfilePage({
   userName,
   pfpUrl,
   walletAddress,
+  dbUser,
   onClose,
 }: ProfilePageProps) {
+  const score = dbUser?.total_score ?? 0;
+  const winRate = dbUser?.win_rate ?? 0;
+  const balance = dbUser?.balance ?? 1000;
+  const streak = dbUser?.best_streak ?? 0;
+  const roundsPlayed = dbUser?.rounds_played ?? 0;
+  const avgScore = roundsPlayed > 0 ? Math.round(score / roundsPlayed) : 0;
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-gray-800/50 px-4 py-3">
@@ -59,18 +69,18 @@ export default function ProfilePage({
 
         {/* Level */}
         <div className="bg-gray-800/30 rounded-xl p-4 border border-gray-800/50">
-          <LevelBadge totalScore={1250} />
+          <LevelBadge totalScore={score} />
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Total Score", value: "1,250" },
-            { label: "Win Rate", value: "58%" },
-            { label: "$DOJO Balance", value: "1,000" },
-            { label: "Best Streak", value: "4" },
-            { label: "Rounds Played", value: "24" },
-            { label: "Avg Score", value: "72" },
+            { label: "Total Score", value: score.toLocaleString() },
+            { label: "Win Rate", value: `${winRate}%` },
+            { label: "$DOJO Balance", value: balance.toLocaleString() },
+            { label: "Best Streak", value: String(streak) },
+            { label: "Rounds Played", value: String(roundsPlayed) },
+            { label: "Avg Score", value: String(avgScore) },
           ].map((stat) => (
             <div
               key={stat.label}

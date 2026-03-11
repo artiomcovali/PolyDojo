@@ -9,6 +9,7 @@ import LeaderboardTab from '@/components/tabs/LeaderboardTab';
 import ProfilePage from '@/components/pages/ProfilePage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import { useSignIn } from '@/hooks/use-sign-in';
+import { useUserData } from '@/hooks/use-user-data';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import Image from 'next/image';
 import { useState } from 'react';
@@ -19,11 +20,24 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('trade');
   const [activePage, setActivePage] = useState<Page>('main');
   const [presets, setPresets] = useState([50, 100, 250]);
+  const [soundEffects, setSoundEffects] = useState(true);
   const { context } = useMiniKit();
   const { signIn, isSignedIn, isLoading, error, user } = useSignIn({
     autoSignIn: false,
   });
   const [devBypassed, setDevBypassed] = useState(false);
+
+  const userName = user?.display_name || context?.user?.displayName || 'Trader';
+  const pfpUrl = user?.pfp_url || context?.user?.pfpUrl;
+  const walletAddress =
+    user?.custody_address || (context?.user as { custodyAddress?: string })?.custodyAddress || null;
+
+  const { dbUser, saveRound } = useUserData({
+    fid: user?.fid || null,
+    address: walletAddress,
+    displayName: userName,
+    pfpUrl,
+  });
 
   // Gate: must be signed in to access the app
   if (!isSignedIn && !devBypassed) {
@@ -36,11 +50,6 @@ export default function Home() {
       />
     );
   }
-
-  const userName = user?.display_name || context?.user?.displayName || 'Trader';
-  const pfpUrl = user?.pfp_url || context?.user?.pfpUrl;
-  const walletAddress =
-    user?.custody_address || (context?.user as { custodyAddress?: string })?.custodyAddress || null;
 
   return (
     <>
@@ -112,10 +121,16 @@ export default function Home() {
 
         {/* Content */}
         <main className="px-4 pt-3 pb-20 max-w-lg mx-auto">
-          <div className={activeTab === 'trade' ? '' : 'hidden'}><TradeTab presets={presets} /></div>
+          <div className={activeTab === 'trade' ? '' : 'hidden'}><TradeTab presets={presets} soundEffects={soundEffects} saveRound={saveRound} /></div>
           <div className={activeTab === 'agent' ? '' : 'hidden'}><AgentTab /></div>
-          <div className={activeTab === 'learn' ? '' : 'hidden'}><LearnTab /></div>
-          <div className={activeTab === 'leaderboard' ? '' : 'hidden'}><LeaderboardTab /></div>
+          <div className={activeTab === 'learn' ? '' : 'hidden'}><LearnTab userId={dbUser?.id} /></div>
+          <div className={activeTab === 'leaderboard' ? '' : 'hidden'}><LeaderboardTab
+                userScore={dbUser?.total_score}
+                userBalance={dbUser?.balance}
+                userWinRate={dbUser?.win_rate}
+                userStreak={dbUser?.best_streak}
+                userRoundsPlayed={dbUser?.rounds_played}
+              /></div>
         </main>
 
         {/* Bottom Nav */}
@@ -128,6 +143,7 @@ export default function Home() {
           userName={userName}
           pfpUrl={pfpUrl}
           walletAddress={walletAddress}
+          dbUser={dbUser}
           onClose={() => setActivePage('main')}
         />
       )}
@@ -137,6 +153,8 @@ export default function Home() {
         <SettingsPage
           presets={presets}
           onPresetsChange={setPresets}
+          soundEffects={soundEffects}
+          onSoundEffectsChange={setSoundEffects}
           onClose={() => setActivePage('main')}
         />
       )}

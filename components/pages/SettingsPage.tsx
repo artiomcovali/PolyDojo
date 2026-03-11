@@ -5,16 +5,19 @@ import { useState } from "react";
 interface SettingsPageProps {
   presets: number[];
   onPresetsChange: (presets: number[]) => void;
+  soundEffects: boolean;
+  onSoundEffectsChange: (enabled: boolean) => void;
   onClose: () => void;
 }
 
 export default function SettingsPage({
   presets,
   onPresetsChange,
+  soundEffects,
+  onSoundEffectsChange,
   onClose,
 }: SettingsPageProps) {
   const [notifications, setNotifications] = useState(true);
-  const [soundEffects, setSoundEffects] = useState(true);
   const [roundDuration, setRoundDuration] = useState<"3" | "5" | "10">("5");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -191,7 +194,7 @@ export default function SettingsPage({
                 </p>
               </div>
               <button
-                onClick={() => setSoundEffects(!soundEffects)}
+                onClick={() => onSoundEffectsChange(!soundEffects)}
                 className={`w-10 h-5 rounded-full transition-colors relative ${
                   soundEffects ? "bg-blue-600" : "bg-gray-700"
                 }`}

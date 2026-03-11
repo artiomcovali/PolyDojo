@@ -12,7 +12,11 @@ export default async function middleware(req: NextRequest) {
     req.nextUrl.pathname === "/api/auth/sign-in" ||
     req.nextUrl.pathname.includes("/api/og") ||
     req.nextUrl.pathname.includes("/api/webhook") ||
-    req.nextUrl.pathname.includes("/api/ai/")
+    req.nextUrl.pathname.includes("/api/ai/") ||
+    req.nextUrl.pathname.includes("/api/users") ||
+    req.nextUrl.pathname.includes("/api/rounds") ||
+    req.nextUrl.pathname.includes("/api/leaderboard") ||
+    req.nextUrl.pathname.includes("/api/learn")
   ) {
     return NextResponse.next();
   }
