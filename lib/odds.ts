@@ -18,35 +18,37 @@ function normalCDF(x: number): number {
   return 0.5 * (1.0 + sign * y);
 }
 
-// BTC annualized volatility ~60%, converted to per-second
-const BTC_ANNUAL_VOL = 0.6;
-const SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60;
-const VOL_PER_SECOND = BTC_ANNUAL_VOL / Math.sqrt(SECONDS_PER_YEAR);
+// Game-tuned odds: calibrated so odds stay ~50/50 early and converge
+// sharply as time runs out, similar to real Polymarket behavior.
+// Tuned for 5-min rounds with ±$50 threshold offsets.
+const MAX_EXPECTED_MOVE = 300;
 
 export function calculateOdds(
   currentPrice: number,
   threshold: number,
-  secondsRemaining: number
+  secondsRemaining: number,
+  roundDuration: number = 300
 ): { yesOdds: number; noOdds: number } {
   if (secondsRemaining <= 0) {
-    // Market resolved
-    const yes = currentPrice >= threshold ? 0.97 : 0.03;
+    const yes = currentPrice >= threshold ? 1 : 0;
     return { yesOdds: yes, noOdds: 1 - yes };
   }
 
   const distance = currentPrice - threshold;
-  const expectedMove = currentPrice * VOL_PER_SECOND * Math.sqrt(secondsRemaining);
+  const timeFraction = secondsRemaining / roundDuration;
 
-  if (expectedMove === 0) {
-    const yes = distance >= 0 ? 0.97 : 0.03;
+  const expectedMove = MAX_EXPECTED_MOVE * Math.sqrt(timeFraction);
+
+  if (expectedMove < 0.01) {
+    const yes = distance >= 0 ? 1 : 0;
     return { yesOdds: yes, noOdds: 1 - yes };
   }
 
   const zScore = distance / expectedMove;
   let yesProb = normalCDF(zScore);
 
-  // Clamp between 3 and 97 cents
-  yesProb = Math.max(0.03, Math.min(0.97, yesProb));
+  // Clamp between 1¢ and 99¢
+  yesProb = Math.max(0.01, Math.min(0.99, yesProb));
 
   return {
     yesOdds: Math.round(yesProb * 100) / 100,

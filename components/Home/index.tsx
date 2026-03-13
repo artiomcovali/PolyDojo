@@ -8,6 +8,7 @@ import LearnTab from '@/components/tabs/LearnTab';
 import LeaderboardTab from '@/components/tabs/LeaderboardTab';
 import ProfilePage from '@/components/pages/ProfilePage';
 import SettingsPage from '@/components/pages/SettingsPage';
+import DojoHeaderBalance from '@/components/shared/DojoHeaderBalance';
 import { useSignIn } from '@/hooks/use-sign-in';
 import { useUserData } from '@/hooks/use-user-data';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
@@ -20,7 +21,20 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('trade');
   const [activePage, setActivePage] = useState<Page>('main');
   const [presets, setPresets] = useState([50, 100, 250]);
-  const [soundEffects, setSoundEffects] = useState(true);
+  const [soundEffects, setSoundEffects] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("polydojo_sound_effects");
+      return saved !== null ? saved === "true" : true;
+    }
+    return true;
+  });
+  const [notifications, setNotifications] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("polydojo_notifications");
+      return saved !== null ? saved === "true" : true;
+    }
+    return true;
+  });
   const { context } = useMiniKit();
   const { signIn, isSignedIn, isLoading, error, user } = useSignIn({
     autoSignIn: false,
@@ -63,11 +77,13 @@ export default function Home() {
               <div>
                 <h1 className="text-sm font-bold leading-none">PolyDojo</h1>
                 <p className="text-[10px] text-gray-500 leading-none mt-0.5">
-                  Prediction Market Trainer
+                  Live Polymarket. Zero Risk.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* DOJO Balance */}
+              <DojoHeaderBalance />
               {/* Profile */}
               <button
                 onClick={() => setActivePage('profile')}
@@ -154,7 +170,9 @@ export default function Home() {
           presets={presets}
           onPresetsChange={setPresets}
           soundEffects={soundEffects}
-          onSoundEffectsChange={setSoundEffects}
+          onSoundEffectsChange={(v) => { setSoundEffects(v); localStorage.setItem("polydojo_sound_effects", String(v)); }}
+          notifications={notifications}
+          onNotificationsChange={(v) => { setNotifications(v); localStorage.setItem("polydojo_notifications", String(v)); }}
           onClose={() => setActivePage('main')}
         />
       )}

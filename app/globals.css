@@ -25,6 +25,16 @@ body {
   height: 0;
 }
 
+/* Scrolling digit animations */
+@keyframes digit-in-up {
+  from { transform: translateY(60%);  filter: blur(2px); opacity: 0; }
+  to   { transform: translateY(0);    filter: blur(0);   opacity: 1; }
+}
+@keyframes digit-in-down {
+  from { transform: translateY(-60%); filter: blur(2px); opacity: 0; }
+  to   { transform: translateY(0);    filter: blur(0);   opacity: 1; }
+}
+
 /* Smooth animations */
 @layer utilities {
   .text-balance {

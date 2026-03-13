@@ -13,7 +13,7 @@ export default function MarketTimer({ secondsRemaining, isResolved }: MarketTime
   return (
     <div className="text-center">
       <div
-        className={`font-mono text-3xl font-bold tabular-nums ${
+        className={`font-mono text-xl font-bold tabular-nums leading-none ${
           isResolved
             ? "text-gray-500"
             : isUrgent
@@ -23,7 +23,7 @@ export default function MarketTimer({ secondsRemaining, isResolved }: MarketTime
       >
         {minutes}:{seconds.toString().padStart(2, "0")}
       </div>
-      <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">
+      <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">
         {isResolved ? "Resolved" : "Remaining"}
       </div>
     </div>

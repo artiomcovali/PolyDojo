@@ -9,7 +9,6 @@ import PositionCard from '@/components/market/PositionCard';
 import PriceToBeat from '@/components/market/PriceToBeat';
 import RoundRecap from '@/components/market/RoundRecap';
 import TradeButtons from '@/components/market/TradeButtons';
-import DojoBalance from '@/components/shared/DojoBalance';
 import { useEffect, useRef, useState } from 'react';
 
 interface SettledPosition extends Position {
@@ -34,7 +33,17 @@ interface TradeTabProps {
 
 export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabProps) {
   const { price, market, positions, placeBet, sellPosition, startNewRound } = useMarket();
-  const [balance, setBalance] = useState(1000);
+  // TODO: Replace localStorage balance with onchain $DOJO token balance when contract is deployed
+  const [balance, setBalance] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("polydojo_balance");
+      return saved !== null ? parseFloat(saved) : 10000;
+    }
+    return 10000;
+  });
+  useEffect(() => {
+    localStorage.setItem("polydojo_balance", String(balance));
+  }, [balance]);
   const [priceHistory, setPriceHistory] = useState<{ time: number; price: number }[]>([]);
   const lastHistoryTime = useRef(0);
   const [settledPositions, setSettledPositions] = useState<SettledPosition[]>([]);
@@ -43,15 +52,15 @@ export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabP
   const roundPositionsRef = useRef<Position[]>([]);
   const soldPnlRef = useRef<Map<number, number>>(new Map());
 
-  // Record price history every 2 seconds
+  // Record price history every 500ms for smooth charting
   useEffect(() => {
     if (price <= 0) return;
     const now = Date.now();
-    if (now - lastHistoryTime.current < 2000) return;
+    if (now - lastHistoryTime.current < 500) return;
     lastHistoryTime.current = now;
     setPriceHistory((prev) => {
       const updated = [...prev, { time: now, price }];
-      return updated.slice(-150);
+      return updated.slice(-600);
     });
   }, [price]);
 
@@ -162,25 +171,60 @@ export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabP
     }
   };
 
-  const handleNextRound = () => {
+  const [loadingNewMarket, setLoadingNewMarket] = useState(false);
+
+  const handleNextRound = async () => {
     setShowRecap(false);
     setSettledPositions([]);
-    startNewRound(price);
+    setLoadingNewMarket(true);
+    await startNewRound();
+    // Show loading for at least 2 seconds so user sees the new market info
+    setTimeout(() => setLoadingNewMarket(false), 2000);
   };
 
   if (price <= 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin text-2xl mb-2">📡</div>
-          <p className="text-gray-400 text-sm">Connecting to BTC price feed...</p>
+      <div className="flex flex-col items-center justify-center h-72 gap-4">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-full border-2 border-yellow-500/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full border-2 border-yellow-500/40 border-t-yellow-500 animate-spin" />
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-lg">₿</span>
+          </div>
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-medium text-white">Fetching live BTC data</p>
+          <p className="text-[10px] text-gray-500">Connecting to Polymarket feed...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading new market transition
+  if (loadingNewMarket) {
+    return (
+      <div className="flex flex-col items-center justify-center h-72 gap-4">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-full border-2 border-yellow-500/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full border-2 border-yellow-500/40 border-t-yellow-500 animate-spin" />
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-lg">₿</span>
+          </div>
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-medium text-white">Loading new live market</p>
+          <p className="text-[10px] text-gray-500">
+            {market.question || "Fetching next 5-min window..."}
+          </p>
         </div>
       </div>
     );
   }
 
   // Show recap after round ends
-  if (showRecap && market.isResolved && market.winner && market.resolutionPrice) {
+  if (showRecap && market.isResolved && market.winner && market.resolutionPrice !== null) {
     return (
       <div className="space-y-3 pb-4">
         <div className="flex items-center justify-between">
@@ -190,7 +234,6 @@ export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabP
               BTC vs ${market.threshold.toLocaleString()} threshold
             </p>
           </div>
-          <DojoBalance balance={balance} />
         </div>
         <RoundRecap
           roundId={market.roundId}
@@ -209,12 +252,13 @@ export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabP
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-bold text-white">BTC 1-Min Market</h2>
+          <h2 className="text-sm font-bold text-white">
+            {market.question || "BTC 5-Min Market"}
+          </h2>
           <p className="text-[10px] text-gray-500">
-            Will BTC be above ${market.threshold.toLocaleString()} at close?
+            Will BTC close above ${market.threshold.toLocaleString()}?
           </p>
         </div>
-        <DojoBalance balance={balance} />
       </div>
 
       {/* Chart */}
@@ -304,6 +348,35 @@ export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabP
         balance={balance}
         onPurchase={(cost) => setBalance((prev) => prev - cost)}
       />
+
+      {/* Market Info */}
+      <div className="bg-gray-800/30 rounded-xl border border-gray-800/50 p-3 space-y-2">
+        <div className="text-xs font-medium text-white">
+          {market.question || "Bitcoin Up or Down"}
+        </div>
+        <div className="flex gap-6">
+          <div>
+            <div className="text-[10px] text-gray-500">Volume</div>
+            <div className="text-xs font-mono text-white">
+              ${parseFloat(market.volume || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] text-gray-500">Liquidity</div>
+            <div className="text-xs font-mono text-white">
+              ${parseFloat(market.liquidity || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+        <p className="text-[9px] text-gray-600 leading-relaxed">
+          This market will resolve to &quot;Up&quot; if the Bitcoin price at the end of the time range is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to &quot;Down&quot;.
+        </p>
+      </div>
+
+      {/* Attribution */}
+      <p className="text-[9px] text-gray-600 text-center pt-1">
+        Live market data pulled directly from Polymarket
+      </p>
     </div>
   );
 }

@@ -7,6 +7,8 @@ interface SettingsPageProps {
   onPresetsChange: (presets: number[]) => void;
   soundEffects: boolean;
   onSoundEffectsChange: (enabled: boolean) => void;
+  notifications: boolean;
+  onNotificationsChange: (enabled: boolean) => void;
   onClose: () => void;
 }
 
@@ -15,9 +17,10 @@ export default function SettingsPage({
   onPresetsChange,
   soundEffects,
   onSoundEffectsChange,
+  notifications,
+  onNotificationsChange,
   onClose,
 }: SettingsPageProps) {
-  const [notifications, setNotifications] = useState(true);
   const [roundDuration, setRoundDuration] = useState<"3" | "5" | "10">("5");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -174,7 +177,7 @@ export default function SettingsPage({
                 </p>
               </div>
               <button
-                onClick={() => setNotifications(!notifications)}
+                onClick={() => onNotificationsChange(!notifications)}
                 className={`w-10 h-5 rounded-full transition-colors relative ${
                   notifications ? "bg-blue-600" : "bg-gray-700"
                 }`}

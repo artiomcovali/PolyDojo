@@ -1,10 +1,7 @@
 "use client";
 
-import { calculateOdds } from "@/lib/odds";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBTCPrice } from "./use-btc-price";
-
-const ROUND_DURATION = 1 * 60; // 1 minute for testing
 
 export interface Position {
   id: number;
@@ -25,101 +22,233 @@ export interface MarketState {
   isResolved: boolean;
   resolutionPrice: number | null;
   winner: "YES" | "NO" | null;
+  question: string;
+  volume: string;
+  liquidity: string;
+}
+
+interface PolymarketData {
+  slug: string;
+  question: string;
+  yesOdds: number;
+  noOdds: number;
+  secondsRemaining: number;
+  endDate: string;
+  windowStart: number;
+  threshold: number;
+  volume: string;
+  liquidity: string;
 }
 
 export function useMarket() {
   const { price, timestamp } = useBTCPrice();
+  const priceRef = useRef(price);
+  priceRef.current = price;
   const [market, setMarket] = useState<MarketState>({
     roundId: 0,
     threshold: 0,
     startTime: 0,
-    secondsRemaining: ROUND_DURATION,
+    secondsRemaining: 300,
     yesOdds: 0.5,
     noOdds: 0.5,
     isActive: false,
     isResolved: false,
     resolutionPrice: null,
     winner: null,
+    question: "",
+    volume: "0",
+    liquidity: "0",
   });
   const [positions, setPositions] = useState<Position[]>([]);
-  const thresholdRef = useRef(0);
-  const startTimeRef = useRef(0);
-  const roundIdRef = useRef(0);
-  const resolvedRef = useRef(false);
   const positionIdRef = useRef(0);
+  const currentSlugRef = useRef("");
+  const resolvedRef = useRef(false);
+  const thresholdRef = useRef(0);
+  const endDateRef = useRef(0);
+  const roundIdRef = useRef(0);
+  const waitingForRecapRef = useRef(false);
 
-  const startNewRound = useCallback(
-    (currentPrice: number) => {
-      if (currentPrice <= 0) return;
-      const offset = (Math.random() - 0.5) * 100;
-      const newThreshold = Math.round(currentPrice + offset);
-      const now = Date.now();
-      roundIdRef.current += 1;
-      thresholdRef.current = newThreshold;
-      startTimeRef.current = now;
-      resolvedRef.current = false;
-
-      setMarket({
-        roundId: roundIdRef.current,
-        threshold: newThreshold,
-        startTime: now,
-        secondsRemaining: ROUND_DURATION,
-        yesOdds: 0.5,
-        noOdds: 0.5,
-        isActive: true,
-        isResolved: false,
-        resolutionPrice: null,
-        winner: null,
-      });
-      setPositions([]);
-    },
-    []
-  );
-
-  // Start first round when price arrives
-  useEffect(() => {
-    if (price > 0 && !market.isActive && !market.isResolved) {
-      startNewRound(price);
+  // Fetch Polymarket data
+  const fetchPolymarket = useCallback(async (): Promise<PolymarketData | null> => {
+    try {
+      const res = await fetch("/api/polymarket");
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
     }
-  }, [price, market.isActive, market.isResolved, startNewRound]);
+  }, []);
 
-  // Update market state every tick
+  // Poll Polymarket every 2 seconds for live odds
   useEffect(() => {
-    if (!market.isActive || price <= 0) return;
+    let mounted = true;
 
-    const elapsed = (Date.now() - startTimeRef.current) / 1000;
-    const remaining = Math.max(0, ROUND_DURATION - elapsed);
+    const poll = async () => {
+      if (!mounted || waitingForRecapRef.current) return;
+      const data = await fetchPolymarket();
+      if (!mounted || !data) return;
 
-    if (remaining <= 0 && !resolvedRef.current) {
-      resolvedRef.current = true;
-      const winner = price >= thresholdRef.current ? "YES" : "NO";
-      setMarket((prev) => ({
-        ...prev,
-        secondsRemaining: 0,
-        yesOdds: winner === "YES" ? 0.97 : 0.03,
-        noOdds: winner === "NO" ? 0.97 : 0.03,
-        isActive: false,
-        isResolved: true,
-        resolutionPrice: price,
-        winner,
-      }));
+      const endTime = new Date(data.endDate).getTime();
+      const remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
 
-      return;
-    }
+      // New market detected
+      if (data.slug !== currentSlugRef.current) {
+        // If we had a previous active market, resolve it and wait for recap
+        if (currentSlugRef.current && !resolvedRef.current) {
+          resolvedRef.current = true;
+          waitingForRecapRef.current = true;
+          const currentPrice = priceRef.current;
+          const winner = currentPrice >= thresholdRef.current ? "YES" : "NO";
+          setMarket((prev) => ({
+            ...prev,
+            secondsRemaining: 0,
+            yesOdds: winner === "YES" ? 1 : 0,
+            noOdds: winner === "NO" ? 1 : 0,
+            isActive: false,
+            isResolved: true,
+            resolutionPrice: currentPrice,
+            winner,
+          }));
+          return;
+        }
 
-    const { yesOdds, noOdds } = calculateOdds(
-      price,
-      thresholdRef.current,
-      remaining
-    );
+        // First market or starting after recap
+        currentSlugRef.current = data.slug;
+        endDateRef.current = endTime;
+        resolvedRef.current = false;
+        roundIdRef.current += 1;
 
-    setMarket((prev) => ({
-      ...prev,
-      secondsRemaining: Math.round(remaining),
-      yesOdds,
-      noOdds,
-    }));
-  }, [price, timestamp, market.isActive, startNewRound]);
+        // Use threshold from Polymarket (Binance opening price), fallback to current BTC price
+        const currentP = priceRef.current;
+        const threshold = data.threshold > 0 ? Math.round(data.threshold) : (currentP > 0 ? Math.round(currentP) : 0);
+        thresholdRef.current = threshold;
+
+        setMarket({
+          roundId: roundIdRef.current,
+          threshold,
+          startTime: data.windowStart,
+          secondsRemaining: remaining,
+          yesOdds: data.yesOdds,
+          noOdds: data.noOdds,
+          isActive: remaining > 0,
+          isResolved: false,
+          resolutionPrice: null,
+          winner: null,
+          question: data.question,
+          volume: data.volume,
+          liquidity: data.liquidity,
+        });
+        setPositions([]);
+        return;
+      }
+
+      // Same market — check if time ran out
+      if (remaining <= 0 && !resolvedRef.current) {
+        resolvedRef.current = true;
+        waitingForRecapRef.current = true;
+        const resolvePrice = priceRef.current;
+        const winner = resolvePrice >= thresholdRef.current ? "YES" : "NO";
+        setMarket((prev) => ({
+          ...prev,
+          secondsRemaining: 0,
+          yesOdds: winner === "YES" ? 1 : 0,
+          noOdds: winner === "NO" ? 1 : 0,
+          isActive: false,
+          isResolved: true,
+          resolutionPrice: resolvePrice,
+          winner,
+        }));
+        return;
+      }
+
+      // Same market, still active — update odds, volume, liquidity from Polymarket
+      if (!resolvedRef.current) {
+        setMarket((prev) => ({
+          ...prev,
+          secondsRemaining: remaining,
+          yesOdds: data.yesOdds,
+          noOdds: data.noOdds,
+          volume: data.volume,
+          liquidity: data.liquidity,
+        }));
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPolymarket]);
+
+  // Smooth countdown timer between polls
+  useEffect(() => {
+    if (!market.isActive || market.isResolved) return;
+
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.round((endDateRef.current - Date.now()) / 1000));
+
+      if (remaining <= 0 && !resolvedRef.current) {
+        resolvedRef.current = true;
+        waitingForRecapRef.current = true;
+        const currentPrice = price;
+        const winner = currentPrice >= thresholdRef.current ? "YES" : "NO";
+        setMarket((prev) => ({
+          ...prev,
+          secondsRemaining: 0,
+          yesOdds: winner === "YES" ? 1 : 0,
+          noOdds: winner === "NO" ? 1 : 0,
+          isActive: false,
+          isResolved: true,
+          resolutionPrice: currentPrice,
+          winner,
+        }));
+        return;
+      }
+
+      setMarket((prev) => ({ ...prev, secondsRemaining: remaining }));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [market.isActive, market.isResolved, price]);
+
+  // Start next round (called from recap screen)
+  const startNewRound = useCallback(async () => {
+    waitingForRecapRef.current = false;
+    resolvedRef.current = false;
+    currentSlugRef.current = ""; // Force re-detection on next poll
+
+    const data = await fetchPolymarket();
+    if (!data) return;
+
+    const endTime = new Date(data.endDate).getTime();
+    const remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+    const threshold = data.threshold > 0 ? Math.round(data.threshold) : (price > 0 ? Math.round(price) : 0);
+
+    currentSlugRef.current = data.slug;
+    endDateRef.current = endTime;
+    thresholdRef.current = threshold;
+    roundIdRef.current += 1;
+
+    setMarket({
+      roundId: roundIdRef.current,
+      threshold,
+      startTime: data.windowStart,
+      secondsRemaining: remaining,
+      yesOdds: data.yesOdds,
+      noOdds: data.noOdds,
+      isActive: remaining > 0,
+      isResolved: false,
+      resolutionPrice: null,
+      winner: null,
+      question: data.question,
+      volume: data.volume,
+      liquidity: data.liquidity,
+    });
+    setPositions([]);
+  }, [fetchPolymarket, price]);
 
   const placeBet = useCallback(
     (isYes: boolean, amount: number) => {

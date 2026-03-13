@@ -16,7 +16,8 @@ export default async function middleware(req: NextRequest) {
     req.nextUrl.pathname.includes("/api/users") ||
     req.nextUrl.pathname.includes("/api/rounds") ||
     req.nextUrl.pathname.includes("/api/leaderboard") ||
-    req.nextUrl.pathname.includes("/api/learn")
+    req.nextUrl.pathname.includes("/api/learn") ||
+    req.nextUrl.pathname.includes("/api/polymarket")
   ) {
     return NextResponse.next();
   }

@@ -17,8 +17,7 @@ export default function Login({ onSignIn, isLoading, error, onBypass }: LoginPro
         <div className="mb-4 flex justify-center"><Image src="/LogoWhite.png" alt="PolyDojo" width={120} height={120} /></div>
         <h1 className="text-3xl font-bold tracking-tight">PolyDojo</h1>
         <p className="text-sm text-gray-400 mt-2 max-w-xs mx-auto leading-relaxed">
-          The training dojo for Polymarket traders. Practice. Learn. Beat the
-          market.
+          Trade live Polymarket markets. Real odds. Zero risk. All skill.
         </p>
       </div>
 
@@ -27,23 +26,23 @@ export default function Login({ onSignIn, isLoading, error, onBypass }: LoginPro
         {[
           {
             icon: "📊",
-            title: "Live BTC Markets",
-            desc: "5-minute prediction markets with real price data",
+            title: "Live Polymarket Odds",
+            desc: "Mirror real 5-min BTC markets — same odds, same clock",
           },
           {
             icon: "🪙",
             title: "$DOJO Token",
-            desc: "Trade with onchain tokens on Base — zero real risk",
+            desc: "Paper trade with onchain tokens on Base — nothing to lose",
           },
           {
             icon: "🤖",
-            title: "AI Coaching",
-            desc: "Get tips before trades and reviews after every round",
+            title: "AI Edge",
+            desc: "Buy AI tips mid-round and get coached after every market",
           },
           {
             icon: "🏆",
-            title: "Onchain Leaderboard",
-            desc: "Earn NFT achievements and climb the rankings",
+            title: "Prove Yourself",
+            desc: "Climb the leaderboard, earn NFT badges, flex your stats",
           },
         ].map((feature) => (
           <div

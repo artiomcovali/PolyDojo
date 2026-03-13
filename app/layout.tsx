@@ -6,9 +6,9 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'PolyDojo — Prediction Market Trainer',
+  title: 'PolyDojo — Trade Polymarket Live. Zero Risk.',
   description:
-    'Practice BTC prediction markets with $DOJO tokens on Base. Zero risk. Real data. AI coaching.',
+    'Trade live Polymarket BTC markets with $DOJO on Base. Real odds. Real data. No real money on the line.',
   icons: {
     icon: '/APPICON.png',
     apple: '/APPICON.png',
