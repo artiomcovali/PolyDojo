@@ -1,6 +1,8 @@
 "use client";
 
 import LevelBadge from "@/components/shared/LevelBadge";
+import { useDojoBalance } from "@/hooks/use-dojo-balance";
+import { DOJO_TOKEN_ADDRESS } from "@/lib/contracts";
 import { UserRow } from "@/lib/supabase";
 import Image from "next/image";
 
@@ -19,6 +21,7 @@ export default function ProfilePage({
   dbUser,
   onClose,
 }: ProfilePageProps) {
+  const { onchainBalance } = useDojoBalance(walletAddress);
   const score = dbUser?.total_score ?? 0;
   const winRate = dbUser?.win_rate ?? 0;
   const balance = dbUser?.balance ?? 1000;
@@ -77,7 +80,7 @@ export default function ProfilePage({
           {[
             { label: "Total Score", value: score.toLocaleString() },
             { label: "Win Rate", value: `${winRate}%` },
-            { label: "$DOJO Balance", value: balance.toLocaleString() },
+            { label: "$DOJO Balance", value: onchainBalance !== null ? Math.round(onchainBalance).toLocaleString() : balance.toLocaleString() },
             { label: "Best Streak", value: String(streak) },
             { label: "Rounds Played", value: String(roundsPlayed) },
             { label: "Avg Score", value: String(avgScore) },
@@ -105,8 +108,38 @@ export default function ProfilePage({
             <p className="text-xs text-gray-500">Not connected</p>
           )}
           <p className="text-[10px] text-gray-600">
-            Base Sepolia · View on BaseScan
+            Base Sepolia ·{" "}
+            {walletAddress && (
+              <a
+                href={`https://sepolia.basescan.org/address/${walletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                View on BaseScan
+              </a>
+            )}
           </p>
+        </div>
+
+        {/* $DOJO Token */}
+        <div className="bg-gray-800/30 rounded-xl p-4 border border-gray-800/50 space-y-2">
+          <h3 className="text-xs font-medium text-gray-400">$DOJO Token</h3>
+          <p className="text-xs text-white font-mono break-all">
+            {DOJO_TOKEN_ADDRESS}
+          </p>
+          <div className="flex items-center gap-2">
+            <a
+              href={`https://sepolia.basescan.org/token/${DOJO_TOKEN_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-blue-400 hover:underline"
+            >
+              View Token
+            </a>
+            <span className="text-[10px] text-gray-600">·</span>
+            <span className="text-[10px] text-gray-600">Base Sepolia · ERC-20</span>
+          </div>
         </div>
       </main>
     </div>

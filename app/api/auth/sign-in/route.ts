@@ -47,7 +47,7 @@ export const POST = async (req: NextRequest) => {
         username: 'trader',
         display_name: 'Trader',
         pfp_url: '',
-        custody_address: '0x0000000000000000000000000000000000000000',
+        custody_address: '0x6eEed1EE979c3953EDD9b94702131e9bC5F1EC52',
         verifications: [],
       };
       walletAddress = user.custody_address;

@@ -9,6 +9,7 @@ export const env = createEnv({
     REDIS_TOKEN: z.string().optional().default(""),
     GROQ_API_KEY: z.string().optional().default(""),
     SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(""),
+    DEPLOYER_PRIVATE_KEY: z.string().optional().default(""),
   },
   client: {
     NEXT_PUBLIC_URL: z.string().min(1),

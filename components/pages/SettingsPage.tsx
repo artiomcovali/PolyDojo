@@ -1,5 +1,6 @@
 "use client";
 
+import { DOJO_TOKEN_ADDRESS } from "@/lib/contracts";
 import { useState } from "react";
 
 interface SettingsPageProps {
@@ -21,7 +22,6 @@ export default function SettingsPage({
   onNotificationsChange,
   onClose,
 }: SettingsPageProps) {
-  const [roundDuration, setRoundDuration] = useState<"3" | "5" | "10">("5");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -131,38 +131,6 @@ export default function SettingsPage({
           </div>
         </div>
 
-        {/* Trading */}
-        <div className="space-y-2">
-          <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-            Trading
-          </h3>
-          <div className="bg-gray-800/30 rounded-xl border border-gray-800/50 divide-y divide-gray-800/50">
-            <div className="flex items-center justify-between p-3">
-              <div>
-                <span className="text-xs text-white">Round Duration</span>
-                <p className="text-[10px] text-gray-500">
-                  Length of each prediction market
-                </p>
-              </div>
-              <div className="flex gap-1">
-                {(["3", "5", "10"] as const).map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => setRoundDuration(val)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
-                      roundDuration === val
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-800 text-gray-400"
-                    }`}
-                  >
-                    {val}m
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Preferences */}
         <div className="space-y-2">
           <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
@@ -229,7 +197,7 @@ export default function SettingsPage({
             <div className="flex items-center justify-between p-3">
               <span className="text-xs text-white">$DOJO Contract</span>
               <span className="text-xs text-gray-500 font-mono">
-                0x0000...0000
+                {DOJO_TOKEN_ADDRESS.slice(0, 6)}...{DOJO_TOKEN_ADDRESS.slice(-4)}
               </span>
             </div>
           </div>

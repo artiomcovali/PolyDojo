@@ -237,6 +237,7 @@ export default function TradeTab({ presets, soundEffects, saveRound }: TradeTabP
         </div>
         <RoundRecap
           roundId={market.roundId}
+          question={market.question}
           threshold={market.threshold}
           resolutionPrice={market.resolutionPrice}
           winner={market.winner}

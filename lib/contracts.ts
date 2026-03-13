@@ -7,7 +7,7 @@ export const ACHIEVEMENTS_ADDRESS = env.NEXT_PUBLIC_ACHIEVEMENTS_ADDRESS as `0x$
 export const LEADERBOARD_ADDRESS = env.NEXT_PUBLIC_LEADERBOARD_ADDRESS as `0x${string}`;
 export const CHAINLINK_BTC_USD = env.NEXT_PUBLIC_CHAINLINK_BTC_USD as `0x${string}`;
 
-// --- DojoToken ABI (ERC-20 + mint/burn) ---
+// --- DojoToken ABI (ERC-20 + mint) ---
 export const DOJO_TOKEN_ABI = [
   {
     inputs: [{ name: "account", type: "address" }],
@@ -62,6 +62,16 @@ export const DOJO_TOKEN_ABI = [
     name: "decimals",
     outputs: [{ name: "", type: "uint8" }],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    name: "mint",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
 ] as const;

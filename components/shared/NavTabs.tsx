@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
 
-export type Tab = "trade" | "agent" | "learn" | "leaderboard";
+export type Tab = "trade" | "learn" | "leaderboard";
 
 interface NavTabsProps {
   activeTab: Tab;
@@ -10,10 +10,9 @@ interface NavTabsProps {
 }
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
-  { id: "trade", label: "Trade", icon: "📊" },
-  { id: "agent", label: "Agent", icon: "🤖" },
-  { id: "learn", label: "Learn", icon: "📚" },
-  { id: "leaderboard", label: "Board", icon: "🏆" },
+  { id: "trade", label: "Trade", icon: "/Assets/trade.svg" },
+  { id: "learn", label: "Learn", icon: "/Assets/learn.svg" },
+  { id: "leaderboard", label: "Leaderboard", icon: "/Assets/leaderboard.svg" },
 ];
 
 export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
@@ -30,7 +29,15 @@ export default function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
                 : "text-gray-500 hover:text-gray-300"
             }`}
           >
-            <span className="text-lg">{tab.icon}</span>
+            <Image
+              src={tab.icon}
+              alt={tab.label}
+              width={20}
+              height={20}
+              className={`transition-opacity ${
+                activeTab === tab.id ? "opacity-100" : "opacity-50"
+              }`}
+            />
             <span className="text-[10px] mt-0.5 font-medium">{tab.label}</span>
           </button>
         ))}

@@ -10,6 +10,7 @@ interface SettledPosition extends Position {
 
 interface RoundRecapProps {
   roundId: number;
+  question: string;
   threshold: number;
   resolutionPrice: number;
   winner: "YES" | "NO";
@@ -19,6 +20,7 @@ interface RoundRecapProps {
 
 export default function RoundRecap({
   roundId,
+  question,
   threshold,
   resolutionPrice,
   winner,
@@ -82,7 +84,7 @@ export default function RoundRecap({
           ? "bg-green-900/20 border-green-800/50"
           : "bg-red-900/20 border-red-800/50"
       }`}>
-        <p className="text-xs text-gray-400 mb-1">Round {roundId} Complete</p>
+        <p className="text-xs text-gray-400 mb-1">{question || `Round ${roundId}`} — Complete</p>
         <p className="text-2xl font-bold font-mono">
           <span className={totalPnl >= 0 ? "text-green-400" : "text-red-400"}>
             {totalPnl >= 0 ? "+" : ""}{totalPnl} $DOJO
@@ -194,7 +196,7 @@ export default function RoundRecap({
         onClick={onNextRound}
         className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-sm transition-all active:scale-[0.98]"
       >
-        Start Next Round
+        Next Live Market
       </button>
     </div>
   );

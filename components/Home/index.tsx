@@ -3,19 +3,19 @@
 import Login from '@/components/Login';
 import NavTabs, { Tab } from '@/components/shared/NavTabs';
 import TradeTab from '@/components/tabs/TradeTab';
-import AgentTab from '@/components/tabs/AgentTab';
 import LearnTab from '@/components/tabs/LearnTab';
 import LeaderboardTab from '@/components/tabs/LeaderboardTab';
 import ProfilePage from '@/components/pages/ProfilePage';
 import SettingsPage from '@/components/pages/SettingsPage';
 import DojoHeaderBalance from '@/components/shared/DojoHeaderBalance';
+import WalletPage from '@/components/pages/WalletPage';
 import { useSignIn } from '@/hooks/use-sign-in';
 import { useUserData } from '@/hooks/use-user-data';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import Image from 'next/image';
 import { useState } from 'react';
 
-type Page = 'main' | 'profile' | 'settings';
+type Page = 'main' | 'profile' | 'settings' | 'wallet';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('trade');
@@ -44,7 +44,8 @@ export default function Home() {
   const userName = user?.display_name || context?.user?.displayName || 'Trader';
   const pfpUrl = user?.pfp_url || context?.user?.pfpUrl;
   const walletAddress =
-    user?.custody_address || (context?.user as { custodyAddress?: string })?.custodyAddress || null;
+    user?.custody_address || (context?.user as { custodyAddress?: string })?.custodyAddress
+    || (devBypassed ? '0x6eEed1EE979c3953EDD9b94702131e9bC5F1EC52' : null);
 
   const { dbUser, saveRound } = useUserData({
     fid: user?.fid || null,
@@ -83,7 +84,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-3">
               {/* DOJO Balance */}
-              <DojoHeaderBalance />
+              <DojoHeaderBalance onClick={() => setActivePage('wallet')} />
               {/* Profile */}
               <button
                 onClick={() => setActivePage('profile')}
@@ -138,8 +139,7 @@ export default function Home() {
         {/* Content */}
         <main className="px-4 pt-3 pb-20 max-w-lg mx-auto">
           <div className={activeTab === 'trade' ? '' : 'hidden'}><TradeTab presets={presets} soundEffects={soundEffects} saveRound={saveRound} /></div>
-          <div className={activeTab === 'agent' ? '' : 'hidden'}><AgentTab /></div>
-          <div className={activeTab === 'learn' ? '' : 'hidden'}><LearnTab userId={dbUser?.id} /></div>
+<div className={activeTab === 'learn' ? '' : 'hidden'}><LearnTab userId={dbUser?.id} /></div>
           <div className={activeTab === 'leaderboard' ? '' : 'hidden'}><LeaderboardTab
                 userScore={dbUser?.total_score}
                 userBalance={dbUser?.balance}
@@ -160,6 +160,14 @@ export default function Home() {
           pfpUrl={pfpUrl}
           walletAddress={walletAddress}
           dbUser={dbUser}
+          onClose={() => setActivePage('main')}
+        />
+      )}
+
+      {/* Wallet overlay */}
+      {activePage === 'wallet' && (
+        <WalletPage
+          walletAddress={walletAddress}
           onClose={() => setActivePage('main')}
         />
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import ScrollingNumber from "@/components/shared/ScrollingNumber";
+import Image from "next/image";
 
 interface PriceToBeatProps {
   currentPrice: number;
@@ -37,7 +38,7 @@ export default function PriceToBeat({ currentPrice, threshold }: PriceToBeatProp
           : "bg-yellow-500/5 border-yellow-500/20"
       }`}>
         <div className="flex items-center gap-2">
-          <span className="text-sm">🎯</span>
+          <Image src="/Assets/target.svg" alt="Target" width={18} height={18} />
           <div>
             <div className="text-[10px] text-yellow-500/80">Price to Beat</div>
             <div className="text-sm font-bold font-mono text-yellow-400">
