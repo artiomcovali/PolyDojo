@@ -1,5 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { mintInitialDojo } from "@/lib/mint";
 import { NextRequest, NextResponse } from "next/server";
+import { isAddress } from "viem";
 
 // GET /api/users?fid=123 or ?address=0x...
 export async function GET(req: NextRequest) {
@@ -48,5 +50,23 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ user: data });
+
+  let mint: { ok: boolean; txHash?: string; reason?: string } | null = null;
+  if (!data.first_minted_at && address && isAddress(address)) {
+    const result = await mintInitialDojo(address);
+    if (result.ok) {
+      const { data: updated } = await supabaseAdmin
+        .from("players")
+        .update({ first_minted_at: new Date().toISOString() })
+        .eq("id", data.id)
+        .select()
+        .single();
+      if (updated) data.first_minted_at = updated.first_minted_at;
+      mint = { ok: true, txHash: result.txHash };
+    } else {
+      mint = { ok: false, reason: result.reason };
+    }
+  }
+
+  return NextResponse.json({ user: data, mint });
 }

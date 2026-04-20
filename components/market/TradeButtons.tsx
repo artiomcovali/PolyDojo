@@ -10,6 +10,8 @@ interface TradeButtonsProps {
   isActive: boolean;
   hasPosition: boolean;
   presets: number[];
+  pending?: boolean;
+  pendingLabel?: string;
   onBuy: (isYes: boolean, amount: number) => void;
 }
 
@@ -20,6 +22,8 @@ export default function TradeButtons({
   isActive,
   hasPosition,
   presets,
+  pending = false,
+  pendingLabel,
   onBuy,
 }: TradeButtonsProps) {
   const [amount, setAmount] = useState(presets[1] ?? presets[0] ?? 100);
@@ -101,7 +105,7 @@ export default function TradeButtons({
       <div className="flex gap-2">
         <button
           onClick={() => onBuy(true, amount)}
-          disabled={amount > balance || amount <= 0}
+          disabled={pending || amount > balance || amount <= 0}
           className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all active:scale-[0.98]"
         >
           <span className="text-sm">Buy YES</span>
@@ -111,7 +115,7 @@ export default function TradeButtons({
         </button>
         <button
           onClick={() => onBuy(false, amount)}
-          disabled={amount > balance || amount <= 0}
+          disabled={pending || amount > balance || amount <= 0}
           className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all active:scale-[0.98]"
         >
           <span className="text-sm">Buy NO</span>
@@ -120,6 +124,12 @@ export default function TradeButtons({
           </span>
         </button>
       </div>
+      {pending && (
+        <div className="flex items-center justify-center gap-2 text-[11px] text-yellow-400">
+          <span className="inline-block w-3 h-3 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin" />
+          <span>{pendingLabel ?? "Confirming..."}</span>
+        </div>
+      )}
     </div>
   );
 }

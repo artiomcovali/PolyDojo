@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/rounds/ensure", "schedule": "*/5 * * * *" },
+    { "path": "/api/rounds/resolve", "schedule": "*/5 * * * *" }
+  ]
+}

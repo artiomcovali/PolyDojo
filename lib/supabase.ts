@@ -29,6 +29,7 @@ export type UserRow = {
   rounds_won: number;
   best_streak: number;
   current_streak: number;
+  first_minted_at: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -9,6 +9,7 @@ interface PositionCardProps {
   isResolved: boolean;
   winner: "YES" | "NO" | null;
   onSell: () => void;
+  hideSell?: boolean;
 }
 
 export default function PositionCard({
@@ -17,6 +18,7 @@ export default function PositionCard({
   isResolved,
   winner,
   onSell,
+  hideSell = false,
 }: PositionCardProps) {
   const pnl = calculatePnL(
     position.entryOdds,
@@ -72,6 +74,10 @@ export default function PositionCard({
             }`}
           >
             {won ? "WON" : "LOST"}
+          </span>
+        ) : hideSell ? (
+          <span className="text-[10px] text-gray-500">
+            Mark @ {formatOdds(position.isYes ? currentYesOdds : 1 - currentYesOdds)}
           </span>
         ) : (
           <button

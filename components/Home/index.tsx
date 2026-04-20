@@ -138,7 +138,7 @@ export default function Home() {
 
         {/* Content */}
         <main className="px-4 pt-3 pb-20 max-w-lg mx-auto">
-          <div className={activeTab === 'trade' ? '' : 'hidden'}><TradeTab presets={presets} soundEffects={soundEffects} saveRound={saveRound} /></div>
+          <div className={activeTab === 'trade' ? '' : 'hidden'}><TradeTab presets={presets} soundEffects={soundEffects} walletAddress={walletAddress} saveRound={saveRound} /></div>
 <div className={activeTab === 'learn' ? '' : 'hidden'}><LearnTab userId={dbUser?.id} /></div>
           <div className={activeTab === 'leaderboard' ? '' : 'hidden'}><LeaderboardTab
                 userScore={dbUser?.total_score}

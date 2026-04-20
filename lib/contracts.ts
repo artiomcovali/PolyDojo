@@ -88,8 +88,19 @@ export const GAME_MANAGER_ABI = [
   {
     inputs: [
       { name: "roundId", type: "uint256" },
+      { name: "threshold", type: "uint256" },
+    ],
+    name: "createRound",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "roundId", type: "uint256" },
       { name: "isYes", type: "bool" },
       { name: "amount", type: "uint256" },
+      { name: "oddsAtEntry", type: "uint256" },
     ],
     name: "placeBet",
     outputs: [],
@@ -100,6 +111,7 @@ export const GAME_MANAGER_ABI = [
     inputs: [
       { name: "roundId", type: "uint256" },
       { name: "chainlinkPrice", type: "uint256" },
+      { name: "participants", type: "address[]" },
     ],
     name: "resolveRound",
     outputs: [],
@@ -148,7 +160,8 @@ export const GAME_MANAGER_ABI = [
     outputs: [
       { name: "isYes", type: "bool" },
       { name: "amount", type: "uint256" },
-      { name: "odds", type: "uint256" },
+      { name: "oddsAtEntry", type: "uint256" },
+      { name: "exists", type: "bool" },
     ],
     stateMutability: "view",
     type: "function",
