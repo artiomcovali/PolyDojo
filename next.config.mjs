@@ -15,6 +15,15 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config) => {
+    // @metamask/sdk ships an optional RN-only import that webpack
+    // tries to resolve on web. Stub it so the build stays clean.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@react-native-async-storage/async-storage": false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
