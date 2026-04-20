@@ -48,7 +48,7 @@ export default function Home() {
     || (devBypassed ? '0x6eEed1EE979c3953EDD9b94702131e9bC5F1EC52' : null);
 
   const { dbUser, saveRound } = useUserData({
-    fid: user?.fid || null,
+    fid: user?.fid ? Number(user.fid) : null,
     address: walletAddress,
     displayName: userName,
     pfpUrl,
