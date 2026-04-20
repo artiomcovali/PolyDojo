@@ -9,8 +9,10 @@ import {
   http,
   maxUint256,
   parseUnits,
+  type WalletClient,
 } from "viem";
 import { baseSepolia } from "viem/chains";
+import { useWalletClient } from "wagmi";
 import {
   DOJO_TOKEN_ABI,
   DOJO_TOKEN_ADDRESS,
@@ -39,6 +41,7 @@ export interface PlaceBetResult {
 export function usePlaceBet(walletAddress: string | null) {
   const [step, setStep] = useState<PlaceBetStep>("idle");
   const [error, setError] = useState<string | null>(null);
+  const { data: wagmiWalletClient } = useWalletClient();
 
   const place = useCallback(
     async (params: {
@@ -58,14 +61,20 @@ export function usePlaceBet(walletAddress: string | null) {
         }
         const roundId = Number(ensure.roundId);
 
-        const provider = (sdk as unknown as { wallet?: { ethProvider?: unknown } })
+        let walletClient: WalletClient;
+        const sdkProvider = (sdk as unknown as { wallet?: { ethProvider?: unknown } })
           .wallet?.ethProvider;
-        if (!provider) throw new Error("no-provider");
-        const walletClient = createWalletClient({
-          account: walletAddress as `0x${string}`,
-          chain: baseSepolia,
-          transport: custom(provider as Parameters<typeof custom>[0]),
-        });
+        if (sdkProvider) {
+          walletClient = createWalletClient({
+            account: walletAddress as `0x${string}`,
+            chain: baseSepolia,
+            transport: custom(sdkProvider as Parameters<typeof custom>[0]),
+          });
+        } else if (wagmiWalletClient) {
+          walletClient = wagmiWalletClient;
+        } else {
+          throw new Error("no-wallet-provider");
+        }
 
         const amountWei = parseUnits(String(params.amount), 18);
 
@@ -79,6 +88,8 @@ export function usePlaceBet(walletAddress: string | null) {
         if (allowance < amountWei) {
           setStep("approving");
           const approveHash = await walletClient.writeContract({
+            account: walletAddress as `0x${string}`,
+            chain: baseSepolia,
             address: DOJO_TOKEN_ADDRESS,
             abi: DOJO_TOKEN_ABI,
             functionName: "approve",
@@ -89,6 +100,8 @@ export function usePlaceBet(walletAddress: string | null) {
 
         setStep("placing");
         const txHash = await walletClient.writeContract({
+          account: walletAddress as `0x${string}`,
+          chain: baseSepolia,
           address: GAME_MANAGER_ADDRESS,
           abi: GAME_MANAGER_ABI,
           functionName: "placeBet",
@@ -124,7 +137,7 @@ export function usePlaceBet(walletAddress: string | null) {
         return { ok: false, error: msg };
       }
     },
-    [walletAddress]
+    [walletAddress, wagmiWalletClient]
   );
 
   const reset = useCallback(() => {
