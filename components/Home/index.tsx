@@ -84,7 +84,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-3">
               {/* DOJO Balance */}
-              <DojoHeaderBalance onClick={() => setActivePage('wallet')} />
+              <DojoHeaderBalance walletAddress={walletAddress} onClick={() => setActivePage('wallet')} />
               {/* Profile */}
               <button
                 onClick={() => setActivePage('profile')}
