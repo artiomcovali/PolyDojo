@@ -1,7 +1,7 @@
 "use client";
 
 import { UserRow } from "@/lib/supabase";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface UseUserDataProps {
   fid?: number | null;
@@ -12,33 +12,19 @@ interface UseUserDataProps {
 
 export function useUserData({ fid, address, displayName, pfpUrl }: UseUserDataProps) {
   const [dbUser, setDbUser] = useState<UserRow | null>(null);
-  const [loading, setLoading] = useState(true);
-  const initialized = useRef(false);
+  const [loading, setLoading] = useState(false);
 
-  // Upsert user on mount
   useEffect(() => {
-    if (initialized.current) return;
+    // Wait until we actually have an identity. Don't upsert a shared
+    // placeholder row before sign-in — that row leaks state between users.
     if (!fid && !address) {
-      // Dev bypass — use a fixed dev user so it persists across reloads
-      fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: "dev-local-user",
-          display_name: displayName || "Trader",
-        }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.user) setDbUser(data.user);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-      initialized.current = true;
+      setDbUser(null);
+      setLoading(false);
       return;
     }
 
-    initialized.current = true;
+    let cancelled = false;
+    setLoading(true);
     fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,10 +37,16 @@ export function useUserData({ fid, address, displayName, pfpUrl }: UseUserDataPr
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) setDbUser(data.user);
+        if (!cancelled && data.user) setDbUser(data.user);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [fid, address, displayName, pfpUrl]);
 
   const saveRound = useCallback(
@@ -80,7 +72,6 @@ export function useUserData({ fid, address, displayName, pfpUrl }: UseUserDataPr
           }),
         });
 
-        // Refresh user data
         const res = await fetch(`/api/users?address=${encodeURIComponent(dbUser.address || "")}`);
         const data = await res.json();
         if (data.user) setDbUser(data.user);
