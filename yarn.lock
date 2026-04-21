@@ -4112,11 +4112,6 @@ enhanced-resolve@^5.15.0:
     graceful-fs "^4.2.4"
     tapable "^2.2.0"
 
-eruda@^3.2.3:
-  version "3.4.1"
-  resolved "https://registry.npmjs.org/eruda/-/eruda-3.4.1.tgz"
-  integrity sha512-RmaO5yD97URY/9Q0lye3cmmNPoXNKreeePIw7c/zllbscR92CjGFZFuQ70+0fLIvLcKW3Xha8DS8NFhmeNbEBQ==
-
 es-abstract@^1.17.5, es-abstract@^1.23.2, es-abstract@^1.23.3, es-abstract@^1.23.5, es-abstract@^1.23.6, es-abstract@^1.23.9:
   version "1.23.9"
   resolved "https://registry.npmjs.org/es-abstract/-/es-abstract-1.23.9.tgz"
