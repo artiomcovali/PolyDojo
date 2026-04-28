@@ -1,9 +1,8 @@
 'use client';
 
-import { useMarket, Position } from '@/hooks/use-market';
+import { useMarket, Position as MarketPosition } from '@/hooks/use-market';
 import { useDojoBalance } from '@/hooks/use-dojo-balance';
-import { useOnchainBet } from '@/hooks/use-onchain-bet';
-import { usePlaceBet, PlaceBetStep } from '@/hooks/use-place-bet';
+import { usePosition } from '@/hooks/use-position';
 import AITip from '@/components/market/AITip';
 import BTCChart from '@/components/market/BTCChart';
 import MarketTimer from '@/components/market/MarketTimer';
@@ -14,7 +13,7 @@ import RoundRecap from '@/components/market/RoundRecap';
 import TradeButtons from '@/components/market/TradeButtons';
 import { useEffect, useRef, useState } from 'react';
 
-interface SettledPosition extends Position {
+interface SettledPosition extends MarketPosition {
   won: boolean;
   pnl: number;
 }
@@ -37,26 +36,10 @@ interface TradeTabProps {
 
 const WINDOW_SECONDS = 300;
 
-function pendingLabel(step: PlaceBetStep): string {
-  switch (step) {
-    case "ensuring-round":
-      return "Creating round...";
-    case "approving":
-      return "Approving $DOJO...";
-    case "placing":
-      return "Placing bet...";
-    case "recording":
-      return "Saving bet...";
-    default:
-      return "Confirming...";
-  }
-}
-
 export default function TradeTab({ presets, soundEffects, walletAddress, saveRound }: TradeTabProps) {
   const { price, market, startNewRound } = useMarket();
-  const { onchainBalance } = useDojoBalance(walletAddress);
+  const { onchainBalance, refetch: refetchBalance } = useDojoBalance(walletAddress);
 
-  // Onchain round id is the current 5-minute Unix window start
   const [onchainRoundId, setOnchainRoundId] = useState<number>(() =>
     Math.floor(Date.now() / 1000 / WINDOW_SECONDS) * WINDOW_SECONDS
   );
@@ -69,8 +52,19 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
     return () => clearInterval(interval);
   }, []);
 
-  const { bet, round, refetch } = useOnchainBet(walletAddress, onchainRoundId, 8000);
-  const { place, step: placeStep, reset: resetPlace } = usePlaceBet(walletAddress);
+  // Ensure round exists onchain the first time user visits a new window
+  const ensuredRef = useRef<number>(0);
+  useEffect(() => {
+    if (ensuredRef.current === onchainRoundId) return;
+    ensuredRef.current = onchainRoundId;
+    fetch("/api/rounds/ensure", { method: "POST" }).catch(() => {});
+  }, [onchainRoundId]);
+
+  const { position, pool, realizedDojo, setPosition, withdraw } = usePosition(
+    walletAddress,
+    onchainRoundId,
+    3000
+  );
 
   const [priceHistory, setPriceHistory] = useState<{ time: number; price: number }[]>([]);
   const lastHistoryTime = useRef(0);
@@ -80,19 +74,28 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
   const balanceAtBetRef = useRef<number | null>(null);
   const resolvedRef = useRef(false);
 
-  // Record price history every 500ms for smooth charting
+  // Freeze the latest position + realized P&L while the round is still live,
+  // so at resolution we can read the real pre-settlement state — by the time
+  // `market.isResolved` fires, the settlement cron may have already zeroed
+  // the bet row (or `onchainRoundId` may have ticked to the next window),
+  // making `position` read null. Without this, won rounds show "no trades."
+  const lastPositionRef = useRef<typeof position>(null);
+  const lastRealizedRef = useRef<number>(0);
+  useEffect(() => {
+    if (market.isResolved) return;
+    lastPositionRef.current = position;
+    lastRealizedRef.current = realizedDojo;
+  }, [position, realizedDojo, market.isResolved]);
+
   useEffect(() => {
     if (price <= 0) return;
     const now = Date.now();
     if (now - lastHistoryTime.current < 500) return;
     lastHistoryTime.current = now;
-    setPriceHistory((prev) => {
-      const updated = [...prev, { time: now, price }];
-      return updated.slice(-600);
-    });
+    setPriceHistory((prev) => [...prev, { time: now, price }].slice(-600));
   }, [price]);
 
-  // Reset chart/recap on new round
+  // Reset per-round UI state
   useEffect(() => {
     if (market.roundId > 0 && !market.isResolved) {
       setPriceHistory([]);
@@ -100,79 +103,146 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
       setShowRecap(false);
       setSettledPositions([]);
       balanceAtBetRef.current = null;
-      resetPlace();
+      lastPositionRef.current = null;
+      lastRealizedRef.current = 0;
     }
-  }, [market.roundId, market.isResolved, resetPlace]);
+  }, [market.roundId, market.isResolved]);
 
-  // Trigger onchain resolution when timer hits 0 (cron will also run, this is a nudge)
+  // Nudge the resolve cron when the timer hits 0. Because there's a small
+  // grace window before a round is eligible to be settled (for Chainlink to
+  // publish a fresh price), we retry the poke until the cron reports the
+  // round as resolved.
   const resolvePokedRef = useRef<number>(0);
   useEffect(() => {
     if (!market.isResolved) return;
     if (resolvePokedRef.current === onchainRoundId) return;
     resolvePokedRef.current = onchainRoundId;
-    fetch("/api/rounds/resolve", { method: "POST" }).catch(() => {});
+
+    let cancelled = false;
+    const tryResolve = async (attempt: number) => {
+      try {
+        const res = await fetch("/api/rounds/resolve", { method: "POST" });
+        const data = await res.json().catch(() => null);
+        console.log(`[resolve attempt ${attempt + 1}] status=${res.status}`, data);
+        if (!cancelled && data?.ok && Array.isArray(data.resolved) && data.resolved.length > 0) {
+          return true;
+        }
+      } catch (err) {
+        console.log(`[resolve attempt ${attempt + 1}] fetch threw:`, err);
+      }
+      return false;
+    };
+
+    (async () => {
+      for (let i = 0; i < 12 && !cancelled; i++) {
+        const done = await tryResolve(i);
+        if (done) return;
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [market.isResolved, onchainRoundId]);
 
-  // Handle settlement once the chain confirms resolution
+  // When the round wraps up, build the recap from the final off-chain position.
   useEffect(() => {
-    if (!market.isResolved) return;
-    if (resolvedRef.current) return;
-    if (!bet) {
-      // No bet placed — show recap immediately using Polymarket winner
-      if (market.winner && market.resolutionPrice !== null) {
-        resolvedRef.current = true;
-        setSettledPositions([]);
-        setShowRecap(true);
-      }
+    if (!market.isResolved || resolvedRef.current) return;
+    if (!market.winner || market.resolutionPrice === null) return;
+
+    // Prefer the live position, but fall back to the last snapshot we saw
+    // this round — by the time this fires, the settlement cron may have
+    // already zeroed the bet row (making `position` null even though the
+    // user actually traded).
+    const snapshot = position ?? lastPositionRef.current;
+    const realizedSnapshot = realizedDojo !== 0 ? realizedDojo : lastRealizedRef.current;
+
+    // No trades all round — just show a no-bet recap
+    if (!snapshot && realizedSnapshot === 0) {
+      resolvedRef.current = true;
+      setSettledPositions([]);
+      setShowRecap(true);
       return;
     }
-    if (!round || !round.resolved) return; // wait for chain
 
     resolvedRef.current = true;
-    const chainYesWins = BigInt(round.resolutionPrice) >= BigInt(round.threshold);
-    const won = bet.isYes === chainYesWins;
+    const chainYesWins = market.winner === "YES";
 
-    const preBalance = balanceAtBetRef.current;
-    const postBalance = onchainBalance;
-    let pnl: number;
-    if (preBalance != null && postBalance != null) {
-      pnl = Math.round(postBalance - preBalance);
-    } else {
-      pnl = won ? bet.amountFmt : -bet.amountFmt;
+    const settledList: SettledPosition[] = [];
+
+    // Realized-only recap row (user sold mid-round and never rebought)
+    if (!snapshot && realizedSnapshot !== 0) {
+      settledList.push({
+        id: 1,
+        isYes: true,
+        amount: 0,
+        entryOdds: 0.5,
+        entryTime: 0,
+        won: realizedSnapshot > 0,
+        pnl: Math.round(realizedSnapshot),
+      });
+    } else if (snapshot) {
+      const won = snapshot.isYes === chainYesWins;
+      const entryBpsClamped = Math.max(100, Math.min(9900, snapshot.entryOddsBps || 5000));
+      const entryProb = entryBpsClamped / 10000;
+      let pnl: number;
+      if (won) {
+        pnl = Math.round(snapshot.amountFmt * (1 - entryProb) / entryProb);
+      } else {
+        pnl = -Math.round(snapshot.amountFmt);
+      }
+      pnl += Math.round(realizedSnapshot);
+
+      settledList.push({
+        id: 1,
+        isYes: snapshot.isYes,
+        amount: Math.round(snapshot.amountFmt),
+        entryOdds: entryProb,
+        entryTime: 0,
+        won,
+        pnl,
+      });
     }
 
-    const settled: SettledPosition = {
-      id: 1,
-      isYes: bet.isYes,
-      amount: Math.round(bet.amountFmt),
-      entryOdds: bet.oddsAtEntryBps / 10000,
-      entryTime: 0,
-      won,
-      pnl,
-    };
-    setSettledPositions([settled]);
+    setSettledPositions(settledList);
     setShowRecap(true);
+    const pnl = settledList.reduce((s, p) => s + p.pnl, 0);
 
-    if (saveRound && market.resolutionPrice != null) {
+    // Refresh onchain balance a few times to pick up the settle tx
+    const refreshes = [2000, 6000, 12000];
+    refreshes.forEach((ms) => setTimeout(() => refetchBalance(), ms));
+
+    if (saveRound && settledList.length > 0) {
+      const first = settledList[0];
       saveRound({
         round_number: market.roundId,
         threshold: market.threshold,
         resolution_price: market.resolutionPrice,
-        winner: chainYesWins ? "YES" : "NO",
+        winner: market.winner,
         total_pnl: pnl,
-        total_wagered: settled.amount,
+        total_wagered: first.amount,
         positions: [
           {
-            side: settled.isYes ? "YES" : "NO",
-            amount: settled.amount,
-            entryOdds: Math.round(settled.entryOdds * 100),
-            won,
-            pnl,
+            side: first.isYes ? "YES" : "NO",
+            amount: first.amount,
+            won: first.won,
+            pnl: first.pnl,
           },
         ],
       });
     }
-  }, [market.isResolved, market.winner, market.resolutionPrice, market.roundId, market.threshold, bet, round, onchainBalance, saveRound]);
+  }, [
+    market.isResolved,
+    market.winner,
+    market.resolutionPrice,
+    market.roundId,
+    market.threshold,
+    position,
+    realizedDojo,
+    saveRound,
+    refetchBalance,
+  ]);
 
   const buySoundRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
@@ -180,24 +250,61 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
   }, []);
 
   const [buyError, setBuyError] = useState<string | null>(null);
-  const isPlacing = placeStep !== "idle" && placeStep !== "done" && placeStep !== "error";
 
+  // New-model click: same side = add to stake, other side = flip (replace stake)
   const handleBuy = async (isYes: boolean, amount: number) => {
     setBuyError(null);
-    if (onchainBalance == null || amount > onchainBalance) return;
+    if (onchainBalance == null) return;
+    const currentStake = position?.amountFmt ?? 0;
+    const currentSide = position?.isYes;
+
+    // Entry odds (bps) for the side being bought, from Polymarket feed.
+    const sideOddsBps = Math.max(
+      100,
+      Math.min(9900, Math.round((isYes ? market.yesOdds : market.noOdds) * 10000))
+    );
+
+    let newAmount: number;
+    let newOddsBps: number;
+    if (currentSide === undefined) {
+      newAmount = amount;
+      newOddsBps = sideOddsBps;
+    } else if (currentSide === isYes) {
+      // Add to same side: weighted-average entry odds by stake
+      newAmount = currentStake + amount;
+      const prevBps = position?.entryOddsBps ?? sideOddsBps;
+      newOddsBps = Math.round(
+        (prevBps * currentStake + sideOddsBps * amount) / (currentStake + amount)
+      );
+    } else {
+      // Flip: new side, new entry odds
+      newAmount = amount;
+      newOddsBps = sideOddsBps;
+    }
+    if (newAmount > onchainBalance) {
+      setBuyError(`Max ${Math.floor(onchainBalance)} $DOJO`);
+      return;
+    }
     balanceAtBetRef.current = onchainBalance;
-    const oddsAtEntryBps = Math.round((isYes ? market.yesOdds : market.noOdds) * 10000);
-    const result = await place({ isYes, amount, oddsAtEntryBps });
-    if (!result.ok) {
-      setBuyError(result.error || "Failed to place bet");
-      balanceAtBetRef.current = null;
+    const res = await setPosition(isYes, newAmount, newOddsBps);
+    if (!res.ok) {
+      setBuyError(res.error || "Failed");
       return;
     }
     if (soundEffects && buySoundRef.current) {
       buySoundRef.current.currentTime = 0;
       buySoundRef.current.play().catch(() => {});
     }
-    await refetch();
+  };
+
+  const handleWithdraw = async () => {
+    setBuyError(null);
+    const yesBps = Math.max(
+      100,
+      Math.min(9900, Math.round(market.yesOdds * 10000))
+    );
+    const res = await withdraw(yesBps);
+    if (!res.ok) setBuyError(res.error || "Failed");
   };
 
   const [loadingNewMarket, setLoadingNewMarket] = useState(false);
@@ -207,7 +314,6 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
     setSettledPositions([]);
     resolvedRef.current = false;
     balanceAtBetRef.current = null;
-    resetPlace();
     setLoadingNewMarket(true);
     await startNewRound();
     setTimeout(() => setLoadingNewMarket(false), 2000);
@@ -253,8 +359,7 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
     );
   }
 
-  // After Polymarket timer ends but before chain resolution, show a waiting state
-  if (market.isResolved && bet && (!round || !round.resolved) && !showRecap) {
+  if (market.isResolved && position && !showRecap) {
     return (
       <div className="flex flex-col items-center justify-center h-72 gap-4">
         <div className="w-12 h-12 rounded-full border-2 border-blue-500/40 border-t-blue-500 animate-spin" />
@@ -293,7 +398,13 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
   }
 
   const displayBalance = onchainBalance ?? 0;
-  const hasPosition = !!bet?.exists;
+
+  // Fixed-odds-at-entry model: live display uses Polymarket-derived odds.
+  const yesOdds = market.yesOdds;
+  const noOdds = market.noOdds;
+  const positionEntryOdds = position
+    ? (position.entryOddsBps || 5000) / 10000
+    : yesOdds;
 
   return (
     <div className="space-y-3 pb-4">
@@ -315,51 +426,56 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
           <MarketTimer secondsRemaining={market.secondsRemaining} isResolved={market.isResolved} />
         </div>
         <div className="flex-1">
-          <OddsDisplay yesOdds={market.yesOdds} noOdds={market.noOdds} winner={market.winner} />
+          <OddsDisplay yesOdds={yesOdds} noOdds={noOdds} winner={market.winner} />
         </div>
       </div>
 
       {market.isActive && <PriceToBeat currentPrice={price} threshold={market.threshold} />}
 
+      {/* Always allow trading during an active round — position is mutable */}
       <TradeButtons
-        yesOdds={market.yesOdds}
-        noOdds={market.noOdds}
+        yesOdds={yesOdds}
+        noOdds={noOdds}
         balance={displayBalance}
         isActive={market.isActive}
-        hasPosition={hasPosition}
+        hasPosition={false}
         presets={presets}
-        pending={isPlacing}
-        pendingLabel={pendingLabel(placeStep)}
         onBuy={handleBuy}
       />
 
       {buyError && (
         <div className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
-          Bet failed: {buyError}
+          {buyError}
         </div>
       )}
 
-      {bet?.exists && (
+      {position && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-[10px] text-gray-500 uppercase tracking-wider">
               Your Position
             </h3>
-            <span className="text-[10px] text-gray-500">Locked until resolution</span>
+            {market.isActive && (
+              <button
+                onClick={handleWithdraw}
+                className="text-[10px] text-yellow-400 hover:text-yellow-300 font-medium"
+              >
+                Sell All
+              </button>
+            )}
           </div>
           <PositionCard
             position={{
               id: 1,
-              isYes: bet.isYes,
-              amount: Math.round(bet.amountFmt),
-              entryOdds: bet.oddsAtEntryBps / 10000,
+              isYes: position.isYes,
+              amount: Math.round(position.amountFmt),
+              entryOdds: positionEntryOdds,
               entryTime: 0,
             }}
-            currentYesOdds={market.yesOdds}
+            currentYesOdds={yesOdds}
             isResolved={market.isResolved}
             winner={market.winner}
-            onSell={() => {}}
-            hideSell
+            onSell={handleWithdraw}
           />
         </div>
       )}
@@ -368,7 +484,7 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
         price={price}
         threshold={market.threshold}
         secondsRemaining={market.secondsRemaining}
-        yesOdds={market.yesOdds}
+        yesOdds={yesOdds}
         isActive={market.isActive}
         balance={displayBalance}
         onPurchase={() => {}}
@@ -396,10 +512,6 @@ export default function TradeTab({ presets, soundEffects, walletAddress, saveRou
           Odds + threshold come from Polymarket. Your $DOJO bet is settled onchain by a Chainlink BTC/USD feed at round end.
         </p>
       </div>
-
-      <p className="text-[9px] text-gray-600 text-center pt-1">
-        Live market data pulled directly from Polymarket
-      </p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 /* eslint-disable */
-// Deploys Achievements, Leaderboard, GameManager and wires permissions
-// so GameManager can mint DOJO (via ownership) and achievement NFTs (via setMinter).
+// Deploys DojoToken, Achievements, Leaderboard, GameManager and wires permissions:
+// - GameManager gets minter access on DojoToken and Achievements
+// - User's Smart Wallet calls firstMint via cron/admin
 
 const fs = require("fs");
 const path = require("path");
@@ -20,18 +21,12 @@ async function main() {
   const pk = (pkRaw.startsWith("0x") ? pkRaw : `0x${pkRaw}`);
   const account = privateKeyToAccount(pk);
 
-  const DOJO = process.env.NEXT_PUBLIC_DOJO_TOKEN_ADDRESS;
-  if (!DOJO || DOJO === "0x0000000000000000000000000000000000000000") {
-    throw new Error("NEXT_PUBLIC_DOJO_TOKEN_ADDRESS not set");
-  }
-
   const pub = createPublicClient({ chain: baseSepolia, transport: http() });
   const wallet = createWalletClient({ account, chain: baseSepolia, transport: http() });
 
   console.log("Deployer:", account.address);
   const bal = await pub.getBalance({ address: account.address });
   console.log("Balance: ", formatEther(bal), "ETH");
-  console.log("DojoToken:", DOJO);
   console.log();
 
   async function deploy(name, args = []) {
@@ -44,11 +39,6 @@ async function main() {
     console.log(`  ✓ ${name} @ ${receipt.contractAddress}`);
     return receipt.contractAddress;
   }
-
-  const achievementsAddr = await deploy("Achievements", [""]);
-  const leaderboardAddr = await deploy("Leaderboard");
-  const gameManagerAddr = await deploy("GameManager", [DOJO, achievementsAddr]);
-  console.log();
 
   async function send(label, to, abi, fn, args) {
     console.log(`→ ${label}...`);
@@ -64,7 +54,23 @@ async function main() {
     console.log(`  ✓ tx ${hash}`);
   }
 
-  // 1) Authorize GameManager to mint Achievement NFTs
+  // Deploy all four contracts fresh
+  const dojoAddr = await deploy("DojoToken");
+  const achievementsAddr = await deploy("Achievements", [""]);
+  const leaderboardAddr = await deploy("Leaderboard");
+  const gameManagerAddr = await deploy("GameManager", [dojoAddr, achievementsAddr]);
+  console.log();
+
+  // Grant GameManager mint/burn rights on DojoToken
+  await send(
+    "DojoToken.setMinter(GameManager, true)",
+    dojoAddr,
+    load("DojoToken").abi,
+    "setMinter",
+    [gameManagerAddr, true]
+  );
+
+  // Grant GameManager mint rights on Achievements
   await send(
     "Achievements.setMinter(GameManager, true)",
     achievementsAddr,
@@ -73,23 +79,14 @@ async function main() {
     [gameManagerAddr, true]
   );
 
-  // 2) Transfer DojoToken ownership to GameManager so GameManager.firstMint works
-  await send(
-    "DojoToken.transferOwnership(GameManager)",
-    DOJO,
-    load("DojoToken").abi,
-    "transferOwnership",
-    [gameManagerAddr]
-  );
-
   console.log();
   console.log("=== Deployment complete ===");
-  console.log("Add these to .env.local:");
+  console.log("Addresses updated in .env.local:");
+  console.log(`NEXT_PUBLIC_DOJO_TOKEN_ADDRESS=${dojoAddr}`);
   console.log(`NEXT_PUBLIC_ACHIEVEMENTS_ADDRESS=${achievementsAddr}`);
   console.log(`NEXT_PUBLIC_LEADERBOARD_ADDRESS=${leaderboardAddr}`);
   console.log(`NEXT_PUBLIC_GAME_MANAGER_ADDRESS=${gameManagerAddr}`);
 
-  // Auto-update .env.local
   const envPath = path.join(__dirname, "..", ".env.local");
   let env = fs.readFileSync(envPath, "utf8");
   const set = (key, value) => {
@@ -97,6 +94,7 @@ async function main() {
     if (re.test(env)) env = env.replace(re, `${key}=${value}`);
     else env += `\n${key}=${value}`;
   };
+  set("NEXT_PUBLIC_DOJO_TOKEN_ADDRESS", dojoAddr);
   set("NEXT_PUBLIC_ACHIEVEMENTS_ADDRESS", achievementsAddr);
   set("NEXT_PUBLIC_LEADERBOARD_ADDRESS", leaderboardAddr);
   set("NEXT_PUBLIC_GAME_MANAGER_ADDRESS", gameManagerAddr);

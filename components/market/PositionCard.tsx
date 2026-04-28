@@ -23,8 +23,7 @@ export default function PositionCard({
   const pnl = calculatePnL(
     position.entryOdds,
     position.isYes ? currentYesOdds : 1 - currentYesOdds,
-    position.amount,
-    position.isYes
+    position.amount
   );
   const pnlColor = pnl >= 0 ? "text-green-400" : "text-red-400";
   const won = winner

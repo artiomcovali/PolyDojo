@@ -5,6 +5,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./DojoToken.sol";
 import "./Achievements.sol";
 
+/// @title GameManager (off-chain trading, on-chain settlement)
+/// @notice Users trade freely off-chain during a round. At round end the
+///         owner calls settleRound with computed net deltas; winners are
+///         minted DOJO, losers' DOJO is burned (capped at current balance).
 contract GameManager is Ownable {
     DojoToken public dojo;
     Achievements public achievements;
@@ -20,21 +24,13 @@ contract GameManager is Ownable {
         bool resolved;
     }
 
-    struct Bet {
-        bool isYes;
-        uint256 amount;
-        uint256 oddsAtEntry; // basis points (e.g. 6500 = 65%)
-        bool exists;
-    }
-
     mapping(uint256 => Round) public rounds;
-    mapping(uint256 => mapping(address => Bet)) public bets;
     mapping(address => bool) public hasMinted;
     mapping(address => bool) public hasClaimedRefill;
 
     event RoundCreated(uint256 indexed roundId, uint256 threshold, uint256 startTime);
-    event BetPlaced(uint256 indexed roundId, address indexed user, bool isYes, uint256 amount);
-    event RoundResolved(uint256 indexed roundId, uint256 resolutionPrice, bool yesWins);
+    event RoundSettled(uint256 indexed roundId, uint256 resolutionPrice, bool yesWins, uint256 userCount);
+    event SettlementApplied(uint256 indexed roundId, address indexed user, int256 delta);
     event FirstMinted(address indexed user, uint256 amount);
     event RefillClaimed(address indexed user, uint256 amount);
 
@@ -61,68 +57,39 @@ contract GameManager is Ownable {
         emit RoundCreated(roundId, threshold, block.timestamp);
     }
 
-    function placeBet(uint256 roundId, bool isYes, uint256 amount, uint256 oddsAtEntry) external {
-        require(rounds[roundId].startTime > 0, "Round does not exist");
-        require(!rounds[roundId].resolved, "Round already resolved");
-        require(!bets[roundId][msg.sender].exists, "Already bet this round");
-        require(amount > 0, "Amount must be > 0");
-
-        dojo.transferFrom(msg.sender, address(this), amount);
-        bets[roundId][msg.sender] = Bet({
-            isYes: isYes,
-            amount: amount,
-            oddsAtEntry: oddsAtEntry,
-            exists: true
-        });
-        emit BetPlaced(roundId, msg.sender, isYes, amount);
-    }
-
-    function resolveRound(
+    /// @notice Applies off-chain computed deltas. Positive delta = mint (winner),
+    ///         negative delta = burn (loser). Debits are capped at the user's
+    ///         current balance so a bankrupt user just zeros out cleanly.
+    function settleRound(
         uint256 roundId,
         uint256 chainlinkPrice,
-        address[] calldata participants
+        address[] calldata users,
+        int256[] calldata deltas
     ) external onlyOwner {
         Round storage round = rounds[roundId];
         require(round.startTime > 0, "Round does not exist");
         require(!round.resolved, "Already resolved");
+        require(users.length == deltas.length, "length mismatch");
 
         round.resolutionPrice = chainlinkPrice;
         round.resolved = true;
-
         bool yesWins = chainlinkPrice >= round.threshold;
 
-        // Pay out winners: winners get their bet back + losers' bets proportionally
-        uint256 totalWinnerBets = 0;
-        uint256 totalLoserBets = 0;
-
-        for (uint256 i = 0; i < participants.length; i++) {
-            Bet storage bet = bets[roundId][participants[i]];
-            if (!bet.exists) continue;
-            if (bet.isYes == yesWins) {
-                totalWinnerBets += bet.amount;
-            } else {
-                totalLoserBets += bet.amount;
+        for (uint256 i = 0; i < users.length; i++) {
+            address u = users[i];
+            int256 d = deltas[i];
+            if (d > 0) {
+                dojo.mint(u, uint256(d));
+            } else if (d < 0) {
+                uint256 debit = uint256(-d);
+                uint256 bal = dojo.balanceOf(u);
+                if (debit > bal) debit = bal;
+                if (debit > 0) dojo.burn(u, debit);
             }
+            emit SettlementApplied(roundId, u, d);
         }
 
-        // Distribute winnings
-        for (uint256 i = 0; i < participants.length; i++) {
-            Bet storage bet = bets[roundId][participants[i]];
-            if (!bet.exists) continue;
-            if (bet.isYes == yesWins && totalWinnerBets > 0) {
-                uint256 share = bet.amount + (bet.amount * totalLoserBets) / totalWinnerBets;
-                dojo.mint(participants[i], share);
-            }
-            // Losers' tokens are already in the contract (burned effectively)
-        }
-
-        // Burn leftover tokens held by contract
-        uint256 contractBalance = dojo.balanceOf(address(this));
-        if (contractBalance > 0) {
-            dojo.burn(address(this), contractBalance);
-        }
-
-        emit RoundResolved(roundId, chainlinkPrice, yesWins);
+        emit RoundSettled(roundId, chainlinkPrice, yesWins, users.length);
     }
 
     function claimRefill() external {
@@ -132,14 +99,5 @@ contract GameManager is Ownable {
         dojo.mint(msg.sender, REFILL_AMOUNT);
         achievements.mint(msg.sender, BANKRUPT_BADGE_ID);
         emit RefillClaimed(msg.sender, REFILL_AMOUNT);
-    }
-
-    function getBet(uint256 roundId, address user)
-        external
-        view
-        returns (bool isYes, uint256 amount, uint256 oddsAtEntry, bool exists)
-    {
-        Bet storage bet = bets[roundId][user];
-        return (bet.isYes, bet.amount, bet.oddsAtEntry, bet.exists);
     }
 }

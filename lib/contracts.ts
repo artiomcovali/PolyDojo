@@ -74,6 +74,23 @@ export const DOJO_TOKEN_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [{ name: "", type: "address" }],
+    name: "minters",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "minter", type: "address" },
+      { name: "authorized", type: "bool" },
+    ],
+    name: "setMinter",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 // --- GameManager ABI ---
@@ -98,22 +115,11 @@ export const GAME_MANAGER_ABI = [
   {
     inputs: [
       { name: "roundId", type: "uint256" },
-      { name: "isYes", type: "bool" },
-      { name: "amount", type: "uint256" },
-      { name: "oddsAtEntry", type: "uint256" },
-    ],
-    name: "placeBet",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "roundId", type: "uint256" },
       { name: "chainlinkPrice", type: "uint256" },
-      { name: "participants", type: "address[]" },
+      { name: "users", type: "address[]" },
+      { name: "deltas", type: "int256[]" },
     ],
-    name: "resolveRound",
+    name: "settleRound",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -152,19 +158,15 @@ export const GAME_MANAGER_ABI = [
     type: "function",
   },
   {
+    anonymous: false,
     inputs: [
-      { name: "roundId", type: "uint256" },
-      { name: "user", type: "address" },
+      { indexed: true, name: "roundId", type: "uint256" },
+      { indexed: false, name: "resolutionPrice", type: "uint256" },
+      { indexed: false, name: "yesWins", type: "bool" },
+      { indexed: false, name: "userCount", type: "uint256" },
     ],
-    name: "getBet",
-    outputs: [
-      { name: "isYes", type: "bool" },
-      { name: "amount", type: "uint256" },
-      { name: "oddsAtEntry", type: "uint256" },
-      { name: "exists", type: "bool" },
-    ],
-    stateMutability: "view",
-    type: "function",
+    name: "RoundSettled",
+    type: "event",
   },
 ] as const;
 

@@ -21,13 +21,18 @@ export default function ProfilePage({
   dbUser,
   onClose,
 }: ProfilePageProps) {
-  const { onchainBalance } = useDojoBalance(walletAddress);
+  const { onchainBalance, loading: balanceLoading } = useDojoBalance(walletAddress);
   const score = dbUser?.total_score ?? 0;
   const winRate = dbUser?.win_rate ?? 0;
-  const balance = dbUser?.balance ?? 1000;
   const streak = dbUser?.best_streak ?? 0;
   const roundsPlayed = dbUser?.rounds_played ?? 0;
   const avgScore = roundsPlayed > 0 ? Math.round(score / roundsPlayed) : 0;
+  const balanceDisplay =
+    onchainBalance !== null
+      ? Math.round(onchainBalance).toLocaleString()
+      : balanceLoading
+      ? "…"
+      : "—";
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -80,7 +85,7 @@ export default function ProfilePage({
           {[
             { label: "Total Score", value: score.toLocaleString() },
             { label: "Win Rate", value: `${winRate}%` },
-            { label: "$DOJO Balance", value: onchainBalance !== null ? Math.round(onchainBalance).toLocaleString() : balance.toLocaleString() },
+            { label: "$DOJO Balance", value: balanceDisplay },
             { label: "Best Streak", value: String(streak) },
             { label: "Rounds Played", value: String(roundsPlayed) },
             { label: "Avg Score", value: String(avgScore) },

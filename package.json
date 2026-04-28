@@ -6,7 +6,8 @@
     "node": "22.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev 2>&1 | { grep --line-buffered -vE '^\\s*(GET|POST) /api/(positions|polymarket|rounds/ensure|rounds/resolve)\\b' || true; }",
+    "dev:raw": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

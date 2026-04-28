@@ -60,14 +60,17 @@ export function formatOdds(odds: number): string {
   return `${Math.round(odds * 100)}¢`;
 }
 
+// Inputs are the price of the side the user bought, at entry and now
+// (e.g. for a NO bet where NO=52¢ at entry and NO=54¢ now, pass 0.52 and 0.54).
 export function calculatePnL(
-  entryOdds: number,
-  currentOdds: number,
-  amount: number,
-  isYes: boolean
+  entrySidePrice: number,
+  currentSidePrice: number,
+  amount: number
 ): number {
-  const entryPrice = isYes ? entryOdds : 1 - entryOdds;
-  const currentPrice = isYes ? currentOdds : 1 - currentOdds;
+  const clamp = (v: number) => Math.min(0.99, Math.max(0.01, v));
+  const entryPrice = clamp(entrySidePrice);
+  const currentPrice = clamp(currentSidePrice);
   const shares = amount / entryPrice;
-  return shares * currentPrice - amount;
+  const pnl = shares * currentPrice - amount;
+  return Number.isFinite(pnl) ? pnl : 0;
 }

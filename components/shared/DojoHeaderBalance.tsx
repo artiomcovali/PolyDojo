@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ScrollingNumber from "./ScrollingNumber";
 import { useDojoBalance } from "@/hooks/use-dojo-balance";
+import { usePosition } from "@/hooks/use-position";
+
+const WINDOW_SECONDS = 300;
 
 interface DojoHeaderBalanceProps {
   walletAddress: string | null;
@@ -14,8 +18,30 @@ export default function DojoHeaderBalance({
 }: DojoHeaderBalanceProps) {
   const { onchainBalance, loading } = useDojoBalance(walletAddress);
 
+  const [roundId, setRoundId] = useState<number>(() =>
+    Math.floor(Date.now() / 1000 / WINDOW_SECONDS) * WINDOW_SECONDS
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      const next = Math.floor(Date.now() / 1000 / WINDOW_SECONDS) * WINDOW_SECONDS;
+      setRoundId((prev) => (prev === next ? prev : next));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const { position, realizedDojo } = usePosition(walletAddress, roundId, 3000);
+
+  // Displayed balance = onchain wallet, minus any stake currently locked in an
+  // open off-chain position, plus any P&L banked by mid-round sells. The round
+  // end settlement reconciles the real onchain balance.
+  const stake = position?.amountFmt ?? 0;
+  const effective =
+    onchainBalance !== null
+      ? Math.max(0, onchainBalance - stake + realizedDojo)
+      : null;
+
   const display =
-    onchainBalance !== null ? Math.round(onchainBalance).toLocaleString() : "—";
+    effective !== null ? Math.round(effective).toLocaleString() : "—";
 
   return (
     <button
