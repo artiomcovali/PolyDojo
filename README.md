@@ -10,6 +10,10 @@
   <a href="https://www.polydojo.app/"><strong>polydojo.app →</strong></a>
 </p>
 
+<p align="center">
+  <img src="Assets/PolyDojoUI.png" alt="PolyDojo app screenshot" width="360" />
+</p>
+
 > **Status: BETA.** PolyDojo is actively under development. Some features are still in progress, and parts of the app may misbehave or change without notice. Onchain state lives on Base Sepolia (testnet) and may be reset between releases. Don't treat anything in this app as a financial product.
 
 PolyDojo is a prediction-market trading simulator that mirrors live Polymarket BTC odds in 5-minute rounds, lets users trade freely with no real money, and settles every round onchain on Base — minting winners' $DOJO and burning losers' in a single batch transaction. After every round, an AI coach reviews the user's actual trades.
