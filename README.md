@@ -14,7 +14,7 @@
   <img src="Assets/PolyDojoUI.png" alt="PolyDojo app screenshot" width="360" />
 </p>
 
-> **Status: BETA.** PolyDojo is actively under development. Some features are still in progress, and parts of the app may misbehave or change without notice. Onchain state lives on Base Sepolia (testnet) and may be reset between releases. Don't treat anything in this app as a financial product.
+> **Status: BETA.** PolyDojo is actively under development. Some features are still in progress, and parts of the app may misbehave or change without notice. Onchain state lives on Base Sepolia (testnet) and may be reset between releases. Everything is currently in a testing sate. Don't treat anything in this app as a financial product.
 
 PolyDojo is a prediction-market trading simulator that mirrors live Polymarket BTC odds in 5-minute rounds, lets users trade freely with no real money, and settles every round onchain on Base — minting winners' $DOJO and burning losers' in a single batch transaction. After every round, an AI coach reviews the user's actual trades.
 
@@ -41,7 +41,7 @@ Built for **Base Batches #3 — Student Track**.
 
 ## The Problem
 
-There is a massive gap between *curious about Polymarket* and *willing to deposit real money on Polymarket*. Existing alternatives don't bridge it:
+There is a massive gap between _curious about Polymarket_ and _willing to deposit real money on Polymarket_. Existing alternatives don't bridge it:
 
 - **Polymarket itself** has no on-ramp, no training wheels, no way to learn without losing money.
 - **Paper-trading apps** are disconnected from real markets and have no skin in the game — wins don't matter, so neither does the practice.
@@ -98,6 +98,7 @@ A cron-style API endpoint (`/api/rounds/resolve`) is poked from the client at ro
 ## Tech Stack
 
 **Frontend**
+
 - Next.js 14 (App Router), React 18, TypeScript
 - TailwindCSS
 - TanStack Query for server-state caching
@@ -106,26 +107,31 @@ A cron-style API endpoint (`/api/rounds/resolve`) is poked from the client at ro
 - lightweight-charts for the BTC price chart
 
 **Wallet & UX**
+
 - Coinbase Smart Wallet (ERC-4337) — seedphrase-free, one-tap onboarding
 - CDP Paymaster — gasless first-mint and badge claims
 - Farcaster Frames + Frame SDK — entry point inside Warpcast
 - Base App mini app — primary distribution surface
 
 **Backend**
+
 - Next.js Route Handlers (Node runtime) on Vercel
 - Supabase Postgres (Row Level Security, service-role admin client)
 - JWT-based session auth (jose)
 
 **Onchain**
+
 - Solidity 0.8.20, OpenZeppelin contracts (ERC-20, ERC-1155, Ownable)
 - Base Sepolia (today) → Base mainnet (at launch)
 - Chainlink BTC/USD oracle for settlement price
 
 **External data**
+
 - Polymarket Gamma + CLOB APIs (live odds, market metadata)
 - Coinbase Exchange 1-min candles (threshold source — matches Polymarket's question text)
 
 **AI**
+
 - Server-side route that summarizes per-round trade history into a personalized review
 
 ## Smart Contracts
@@ -136,11 +142,11 @@ Four contracts on Base Sepolia, all wired together at deploy time so GameManager
 
 ERC-20 representing in-game currency. A minter allowlist gates `mint` and `burn`, owned by the deployer. The deploy script authorizes GameManager as a minter; the settlement loop also has a pre-flight check that re-authorizes if the bit was lost.
 
-| | |
-|---|---|
-| Name / Symbol | PolyDojo / DOJO |
-| Decimals | 18 |
-| Supply | Unbounded (minter-gated) |
+|                        |                                              |
+| ---------------------- | -------------------------------------------- |
+| Name / Symbol          | PolyDojo / DOJO                              |
+| Decimals               | 18                                           |
+| Supply                 | Unbounded (minter-gated)                     |
 | Address (Base Sepolia) | `0xc9c7a45b780b58414a47675e70a25c190f7bf715` |
 
 ### GameManager (`contracts/GameManager.sol`)
@@ -148,34 +154,35 @@ ERC-20 representing in-game currency. A minter allowlist gates `mint` and `burn`
 The orchestrator. Stores rounds, accepts off-chain-computed deltas, and emits per-user settlement events.
 
 Key functions:
+
 - `firstMint(user)` — one-time 1000 DOJO welcome bonus, gated to onlyOwner.
 - `createRound(roundId, threshold)` — registers a new 5-min window. `roundId` is the unix timestamp of the window start.
 - `settleRound(roundId, chainlinkPrice, users[], deltas[])` — applies signed deltas: positive mints, negative burns (capped at the user's current balance so a bankrupt user just zeros out cleanly). Emits `RoundSettled` and per-user `SettlementApplied` events.
 - `claimRefill()` — one-time 500 DOJO top-up for any user whose balance hits zero, also mints a Bankrupt badge.
 
-| | |
-|---|---|
-| INITIAL_MINT | 1000 ether |
-| REFILL_AMOUNT | 500 ether |
+|                        |                                              |
+| ---------------------- | -------------------------------------------- |
+| INITIAL_MINT           | 1000 ether                                   |
+| REFILL_AMOUNT          | 500 ether                                    |
 | Address (Base Sepolia) | `0x7ce874264882845844154984430e4b8ea58ec0b2` |
 
 ### Achievements (`contracts/Achievements.sol`)
 
 ERC-1155 badges tied to gameplay milestones. Token IDs:
 
-| ID | Badge |
-|---|---|
-| 1 | Trader |
-| 2 | Shark |
-| 3 | Whale |
-| 4 | Legend |
-| 5 | Bankrupt |
-| 10 | Streak 3 |
-| 11 | Streak 5 |
-| 12 | Streak 10 |
+| ID    | Badge                 |
+| ----- | --------------------- |
+| 1     | Trader                |
+| 2     | Shark                 |
+| 3     | Whale                 |
+| 4     | Legend                |
+| 5     | Bankrupt              |
+| 10    | Streak 3              |
+| 11    | Streak 5              |
+| 12    | Streak 10             |
 | 20–24 | Scenario Master tiers |
-| 30 | Perfect Round |
-| 31 | Contrarian Win |
+| 30    | Perfect Round         |
+| 31    | Contrarian Win        |
 
 Address (Base Sepolia): `0x8b3350e03d02765ea53745ef1a08628399c94bb1`
 
@@ -191,15 +198,15 @@ Used as the resolution oracle. Read via `latestRoundData()` at settlement; compa
 
 ## The $DOJO Token
 
-$DOJO is the in-game currency. It exists onchain as a real ERC-20 — visible in any wallet, transferable between addresses — but is not sold, not raised against, and is not intended to have monetary value. Its role is to make the practice arena's outcomes *real* — your wallet balance, your wins, your losses, your achievements all live in the same place a real Polymarket trader's would.
+$DOJO is the in-game currency. It exists onchain as a real ERC-20 — visible in any wallet, transferable between addresses — but is not sold, not raised against, and is not intended to have monetary value. Its role is to make the practice arena's outcomes _real_ — your wallet balance, your wins, your losses, your achievements all live in the same place a real Polymarket trader's would.
 
-| | |
-|---|---|
-| Name | PolyDojo |
-| Symbol | DOJO |
-| Decimals | 18 |
-| Original network | Base Sepolia |
-| Mainnet target | Base mainnet (at public launch) |
+|                   |                                              |
+| ----------------- | -------------------------------------------- |
+| Name              | PolyDojo                                     |
+| Symbol            | DOJO                                         |
+| Decimals          | 18                                           |
+| Original network  | Base Sepolia                                 |
+| Mainnet target    | Base mainnet (at public launch)              |
 | Address (Sepolia) | `0xc9c7a45b780b58414a47675e70a25c190f7bf715` |
 
 ## Project Structure
@@ -284,24 +291,24 @@ The app runs on `http://localhost:3000`. Trading works fully against Base Sepoli
 
 ## Environment Variables
 
-| Key | Purpose |
-|---|---|
-| `JWT_SECRET` | Session JWTs |
-| `NEXT_PUBLIC_URL` | Public app origin |
-| `NEXT_PUBLIC_MINIKIT_PROJECT_ID` | OnchainKit project ID |
-| `NEXT_PUBLIC_FARCASTER_HEADER` | Farcaster Frame manifest |
-| `NEXT_PUBLIC_FARCASTER_PAYLOAD` | Farcaster Frame manifest |
-| `NEXT_PUBLIC_FARCASTER_SIGNATURE` | Farcaster Frame manifest |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-side admin key |
-| `DEPLOYER_PRIVATE_KEY` | Owner of GameManager + DojoToken |
-| `NEXT_PUBLIC_DOJO_TOKEN_ADDRESS` | DojoToken address |
-| `NEXT_PUBLIC_GAME_MANAGER_ADDRESS` | GameManager address |
-| `NEXT_PUBLIC_ACHIEVEMENTS_ADDRESS` | Achievements address |
-| `NEXT_PUBLIC_LEADERBOARD_ADDRESS` | Leaderboard address |
-| `NEXT_PUBLIC_CHAINLINK_BTC_USD` | Chainlink aggregator (Base Sepolia) |
-| `NEXT_PUBLIC_CDP_PAYMASTER_URL` | Coinbase Developer Platform paymaster |
+| Key                                | Purpose                               |
+| ---------------------------------- | ------------------------------------- |
+| `JWT_SECRET`                       | Session JWTs                          |
+| `NEXT_PUBLIC_URL`                  | Public app origin                     |
+| `NEXT_PUBLIC_MINIKIT_PROJECT_ID`   | OnchainKit project ID                 |
+| `NEXT_PUBLIC_FARCASTER_HEADER`     | Farcaster Frame manifest              |
+| `NEXT_PUBLIC_FARCASTER_PAYLOAD`    | Farcaster Frame manifest              |
+| `NEXT_PUBLIC_FARCASTER_SIGNATURE`  | Farcaster Frame manifest              |
+| `NEXT_PUBLIC_SUPABASE_URL`         | Supabase project URL                  |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`    | Public anon key                       |
+| `SUPABASE_SERVICE_ROLE_KEY`        | Server-side admin key                 |
+| `DEPLOYER_PRIVATE_KEY`             | Owner of GameManager + DojoToken      |
+| `NEXT_PUBLIC_DOJO_TOKEN_ADDRESS`   | DojoToken address                     |
+| `NEXT_PUBLIC_GAME_MANAGER_ADDRESS` | GameManager address                   |
+| `NEXT_PUBLIC_ACHIEVEMENTS_ADDRESS` | Achievements address                  |
+| `NEXT_PUBLIC_LEADERBOARD_ADDRESS`  | Leaderboard address                   |
+| `NEXT_PUBLIC_CHAINLINK_BTC_USD`    | Chainlink aggregator (Base Sepolia)   |
+| `NEXT_PUBLIC_CDP_PAYMASTER_URL`    | Coinbase Developer Platform paymaster |
 
 ## Database
 
@@ -309,29 +316,29 @@ Two main Supabase tables (full schema in `supabase/003_onchain_tables.sql`):
 
 **`onchain_rounds`** — registry of every 5-min window.
 
-| Column | Type | Notes |
-|---|---|---|
-| `round_id` | bigint PK | Unix timestamp of window start |
-| `threshold` | numeric(78,0) | Chainlink-scaled (8 dec) |
-| `end_time` | bigint | Unix seconds |
-| `resolution_price` | numeric(78,0) | Filled at settlement |
-| `yes_wins` | bool | Filled at settlement |
-| `resolved` | bool | |
-| `created_tx`, `resolved_tx` | text | Tx hashes |
+| Column                      | Type          | Notes                          |
+| --------------------------- | ------------- | ------------------------------ |
+| `round_id`                  | bigint PK     | Unix timestamp of window start |
+| `threshold`                 | numeric(78,0) | Chainlink-scaled (8 dec)       |
+| `end_time`                  | bigint        | Unix seconds                   |
+| `resolution_price`          | numeric(78,0) | Filled at settlement           |
+| `yes_wins`                  | bool          | Filled at settlement           |
+| `resolved`                  | bool          |                                |
+| `created_tx`, `resolved_tx` | text          | Tx hashes                      |
 
 **`bets`** — one row per user-round, mutated freely during the round.
 
-| Column | Type | Notes |
-|---|---|---|
-| `user_address` | text | |
-| `round_id` | bigint FK | |
-| `is_yes` | bool | Side currently held |
-| `amount` | numeric(78,0) | DOJO wei locked in open position |
-| `entry_odds_bps` | int | Polymarket odds at entry, in bps |
-| `realized_wei` | numeric(78,0) | Banked P&L from mid-round sells (signed) |
-| `settled` | bool | True once `settleRound` succeeds |
-| `settled_delta` | numeric(78,0) | Delta minted/burned at settlement |
-| `placed_at`, `updated_at` | timestamptz | |
+| Column                    | Type          | Notes                                    |
+| ------------------------- | ------------- | ---------------------------------------- |
+| `user_address`            | text          |                                          |
+| `round_id`                | bigint FK     |                                          |
+| `is_yes`                  | bool          | Side currently held                      |
+| `amount`                  | numeric(78,0) | DOJO wei locked in open position         |
+| `entry_odds_bps`          | int           | Polymarket odds at entry, in bps         |
+| `realized_wei`            | numeric(78,0) | Banked P&L from mid-round sells (signed) |
+| `settled`                 | bool          | True once `settleRound` succeeds         |
+| `settled_delta`           | numeric(78,0) | Delta minted/burned at settlement        |
+| `placed_at`, `updated_at` | timestamptz   |                                          |
 
 `UNIQUE(user_address, round_id)` so the same user can flip sides without creating ghost rows; `idx_bets_round_unsettled` is a partial index speeding up the cron's "find due bets" query.
 
@@ -352,4 +359,4 @@ Why Base specifically:
 - **Per-round onchain settlement is economically viable on Base** — the gas profile of mint+burn for N users in a single tx is small enough to absorb without paywalling the experience.
 - **OnchainKit + Farcaster Frame integrations** — give us additional discovery surfaces and identity primitives that compose cleanly with the Smart Wallet flow.
 
-The contracts and frontend would technically port to any EVM chain, but the *product* — a free-to-play, mobile-first prediction-market trainer with onchain rewards — only works because Base provides the full distribution + onboarding + low-fee stack in one place.
+The contracts and frontend would technically port to any EVM chain, but the _product_ — a free-to-play, mobile-first prediction-market trainer with onchain rewards — only works because Base provides the full distribution + onboarding + low-fee stack in one place.
